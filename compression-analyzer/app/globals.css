@@ -1,1 +1,24 @@
-@import "tailwindcss";
+﻿@import "tailwindcss";
+
+@theme {
+  --color-brand-50: #eff6ff;
+  --color-brand-400: #60a5fa;
+  --color-brand-500: #3b82f6;
+  --color-brand-600: #2563eb;
+  --color-brand-700: #1d4ed8;
+
+  --color-surface-900: #0a0a0b;
+  --color-surface-800: #111113;
+  --color-surface-700: #1a1a1d;
+  --color-surface-600: #27272a;
+  --color-surface-500: #3f3f46;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  body {
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+}
