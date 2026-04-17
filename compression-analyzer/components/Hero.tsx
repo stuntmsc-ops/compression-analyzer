@@ -1,6 +1,57 @@
+"use client";
+
+import { useState, useEffect } from "react";
 import Button from "./Button";
+import AudioUploader from "./AudioUploader";
+import AudioPlayer from "./AudioPlayer";
+import { decodeAudioFile } from "@/lib/audioContext";
 
 export default function Hero() {
+  const [file, setFile] = useState<File | null>(null);
+  const [audioBuffer, setAudioBuffer] = useState<AudioBuffer | null>(null);
+  const [decodingError, setDecodingError] = useState<string | null>(null);
+  const [isDecoding, setIsDecoding] = useState(false);
+
+  useEffect(() => {
+    if (!file) {
+      setAudioBuffer(null);
+      setDecodingError(null);
+      return;
+    }
+
+    let cancelled = false;
+    setIsDecoding(true);
+    setDecodingError(null);
+
+    decodeAudioFile(file)
+      .then((buffer) => {
+        if (!cancelled) setAudioBuffer(buffer);
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setDecodingError(err instanceof Error ? err.message : "Decoding failed");
+          setAudioBuffer(null);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setIsDecoding(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [file]);
+
+  const handleRemove = () => {
+    setFile(null);
+    setAudioBuffer(null);
+    setDecodingError(null);
+  };
+
+  const scrollToUpload = () => {
+    document.getElementById("upload-zone")?.scrollIntoView({ behavior: "smooth" });
+  };
+
   return (
     <section className="relative overflow-hidden">
       {/* Background gradient effect */}
@@ -32,7 +83,7 @@ export default function Hero() {
         </p>
 
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-12">
-          <Button size="lg" onClick={() => document.getElementById('upload-zone')?.scrollIntoView({ behavior: 'smooth' })}>
+          <Button size="lg" onClick={scrollToUpload}>
             Analyze Your Audio
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
@@ -43,31 +94,42 @@ export default function Hero() {
           </p>
         </div>
 
-        {/* Upload zone placeholder */}
-        <div id="upload-zone" className="bg-surface-800 border border-surface-700 rounded-2xl p-4 sm:p-8 max-w-2xl mx-auto shadow-2xl">
-          <div className="border-2 border-dashed border-surface-500 rounded-xl p-8 sm:p-12 text-center hover:border-brand-500/50 transition-colors">
-            <div className="w-14 h-14 bg-surface-700 rounded-xl mx-auto mb-4 flex items-center justify-center">
-              <svg
-                className="w-7 h-7 text-gray-500"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-                />
-              </svg>
+        {/* Upload zone */}
+        <div
+          id="upload-zone"
+          className="bg-surface-800 border border-surface-700 rounded-2xl p-4 sm:p-6 max-w-2xl mx-auto shadow-2xl text-left"
+        >
+          {!file ? (
+            <AudioUploader onFileSelected={setFile} />
+          ) : (
+            <div className="space-y-4">
+              {isDecoding && (
+                <div className="flex items-center gap-3 text-gray-400 text-sm px-1">
+                  <div className="w-4 h-4 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
+                  <span>Decoding audio…</span>
+                </div>
+              )}
+
+              {decodingError && (
+                <div className="px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
+                  {decodingError}
+                </div>
+              )}
+
+              {audioBuffer && (
+                <AudioPlayer audioBuffer={audioBuffer} fileName={file.name} />
+              )}
+
+              <div className="flex items-center justify-between px-1">
+                <p className="text-gray-500 text-xs">
+                  {(file.size / 1024 / 1024).toFixed(1)} MB · {file.type || "audio"}
+                </p>
+                <Button variant="ghost" size="sm" onClick={handleRemove}>
+                  Remove
+                </Button>
+              </div>
             </div>
-            <p className="text-gray-300 font-medium mb-1.5">
-              Upload your audio here
-            </p>
-            <p className="text-gray-600 text-sm">
-              Coming in Day 3 — WAV, MP3, FLAC supported · Max 20MB
-            </p>
-          </div>
+          )}
         </div>
       </div>
     </section>
