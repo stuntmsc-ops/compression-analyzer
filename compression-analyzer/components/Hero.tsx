@@ -4,48 +4,55 @@ import { useState, useEffect } from "react";
 import Button from "./Button";
 import AudioUploader from "./AudioUploader";
 import AudioPlayer from "./AudioPlayer";
+import SelectorPanel from "./SelectorPanel";
 import { decodeAudioFile } from "@/lib/audioContext";
+import { DEFAULT_SELECTOR_STATE, type SelectorState } from "@/lib/types";
 
 export default function Hero() {
   const [file, setFile] = useState<File | null>(null);
   const [audioBuffer, setAudioBuffer] = useState<AudioBuffer | null>(null);
   const [decodingError, setDecodingError] = useState<string | null>(null);
   const [isDecoding, setIsDecoding] = useState(false);
+  const [selectors, setSelectors] = useState<SelectorState>(DEFAULT_SELECTOR_STATE);
 
   useEffect(() => {
-    if (!file) {
-      setAudioBuffer(null);
-      setDecodingError(null);
-      return;
-    }
+    // When file is cleared, handleRemove owns the reset — nothing to do here.
+    if (!file) return;
 
-    let cancelled = false;
-    setIsDecoding(true);
-    setDecodingError(null);
+    const controller = new AbortController();
 
     decodeAudioFile(file)
       .then((buffer) => {
-        if (!cancelled) setAudioBuffer(buffer);
+        if (controller.signal.aborted) return;
+        setAudioBuffer(buffer);
       })
       .catch((err) => {
-        if (!cancelled) {
-          setDecodingError(err instanceof Error ? err.message : "Decoding failed");
-          setAudioBuffer(null);
-        }
+        if (controller.signal.aborted) return;
+        setDecodingError(err instanceof Error ? err.message : "Decoding failed");
       })
       .finally(() => {
-        if (!cancelled) setIsDecoding(false);
+        if (!controller.signal.aborted) setIsDecoding(false);
       });
 
     return () => {
-      cancelled = true;
+      controller.abort();
     };
   }, [file]);
+
+  const handleFileSelected = (newFile: File) => {
+    // All synchronous state transitions for "new file" happen here
+    // so the effect stays clean (see react-hooks/set-state-in-effect).
+    setAudioBuffer(null);
+    setDecodingError(null);
+    setIsDecoding(true);
+    setFile(newFile);
+  };
 
   const handleRemove = () => {
     setFile(null);
     setAudioBuffer(null);
     setDecodingError(null);
+    setIsDecoding(false);
   };
 
   const scrollToUpload = () => {
@@ -94,13 +101,16 @@ export default function Hero() {
           </p>
         </div>
 
+        {/* Analysis setup selectors */}
+        <SelectorPanel value={selectors} onChange={setSelectors} />
+
         {/* Upload zone */}
         <div
           id="upload-zone"
           className="bg-surface-800 border border-surface-700 rounded-2xl p-4 sm:p-6 max-w-2xl mx-auto shadow-2xl text-left"
         >
           {!file ? (
-            <AudioUploader onFileSelected={setFile} />
+            <AudioUploader onFileSelected={handleFileSelected} />
           ) : (
             <div className="space-y-4">
               {isDecoding && (
@@ -117,7 +127,7 @@ export default function Hero() {
               )}
 
               {audioBuffer && (
-                <AudioPlayer audioBuffer={audioBuffer} fileName={file.name} />
+                <AudioPlayer file={file} fileName={file.name} />
               )}
 
               <div className="flex items-center justify-between px-1">

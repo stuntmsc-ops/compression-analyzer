@@ -1,10 +1,11 @@
+import Link from "next/link";
 import Button from "./Button";
 
 export default function Header() {
   return (
     <header className="sticky top-0 z-40 bg-surface-900/80 backdrop-blur-md border-b border-surface-700">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between">
-        <a href="/" className="flex items-center gap-2.5 group">
+        <Link href="/" className="flex items-center gap-2.5 group">
           <div className="w-9 h-9 bg-gradient-to-br from-brand-400 to-brand-600 rounded-lg flex items-center justify-center shadow-lg shadow-brand-500/20 group-hover:shadow-brand-500/40 transition-shadow">
             <svg
               className="w-5 h-5 text-white"
@@ -23,7 +24,7 @@ export default function Header() {
           <span className="font-semibold text-white text-base sm:text-lg tracking-tight">
             Compression Analyzer
           </span>
-        </a>
+        </Link>
 
         <div className="flex items-center gap-2">
           <a

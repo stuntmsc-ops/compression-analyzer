@@ -1,28 +1,96 @@
 "use client";
 
-import { useAudioPlayer } from "@/hooks/useAudioPlayer";
+import { useEffect, useRef, useState } from "react";
+import WaveSurfer from "wavesurfer.js";
 import { formatTime } from "@/lib/audioContext";
 
 type AudioPlayerProps = {
-  audioBuffer: AudioBuffer | null;
+  file: File;
   fileName: string;
 };
 
-export default function AudioPlayer({ audioBuffer, fileName }: AudioPlayerProps) {
-  const { isPlaying, currentTime, duration, error, play, pause, seek } =
-    useAudioPlayer(audioBuffer);
+export default function AudioPlayer({ file, fileName }: AudioPlayerProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const wavesurferRef = useRef<WaveSurfer | null>(null);
 
-  const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [isReady, setIsReady] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!duration) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const clickX = e.clientX - rect.left;
-    const ratio = Math.max(0, Math.min(clickX / rect.width, 1));
-    seek(ratio * duration);
+  // Initialize wavesurfer whenever the file changes
+  useEffect(() => {
+    if (!containerRef.current) return;
+
+    setIsReady(false);
+    setError(null);
+    setCurrentTime(0);
+    setIsPlaying(false);
+
+    const ws = WaveSurfer.create({
+      container: containerRef.current,
+      waveColor: "#3f3f46",      // surface-500
+      progressColor: "#3b82f6",  // brand-500
+      cursorColor: "#60a5fa",    // brand-400
+      cursorWidth: 2,
+      barWidth: 2,
+      barGap: 1,
+      barRadius: 2,
+      height: 72,
+      normalize: true,
+      interact: true,
+      dragToSeek: true,
+    });
+
+    wavesurferRef.current = ws;
+
+    // AbortError fires when the wavesurfer instance is destroyed mid-load
+    // (common in React Strict Mode dev double-invoke). Not a real error.
+    const isAbortError = (err: unknown): boolean => {
+      if (!(err instanceof Error)) return false;
+      return (
+        err.name === "AbortError" ||
+        err.message.toLowerCase().includes("abort")
+      );
+    };
+
+    const objectUrl = URL.createObjectURL(file);
+    ws.load(objectUrl).catch((err) => {
+      if (isAbortError(err)) return;
+      setError(err instanceof Error ? err.message : "Failed to load waveform");
+    });
+
+    const unsubscribers = [
+      ws.on("ready", () => {
+        setIsReady(true);
+        setDuration(ws.getDuration());
+      }),
+      ws.on("play", () => setIsPlaying(true)),
+      ws.on("pause", () => setIsPlaying(false)),
+      ws.on("finish", () => {
+        setIsPlaying(false);
+        ws.seekTo(0);
+        setCurrentTime(0);
+      }),
+      ws.on("timeupdate", (time) => setCurrentTime(time)),
+      ws.on("error", (e) => {
+        if (isAbortError(e)) return;
+        setError(e instanceof Error ? e.message : String(e));
+      }),
+    ];
+
+    return () => {
+      unsubscribers.forEach((unsub) => unsub());
+      ws.destroy();
+      wavesurferRef.current = null;
+      URL.revokeObjectURL(objectUrl);
+    };
+  }, [file]);
+
+  const handlePlayPause = () => {
+    wavesurferRef.current?.playPause();
   };
-
-  if (!audioBuffer) return null;
 
   return (
     <div className="bg-surface-800 border border-surface-700 rounded-xl p-4 sm:p-5">
@@ -32,12 +100,33 @@ export default function AudioPlayer({ audioBuffer, fileName }: AudioPlayerProps)
         </div>
       )}
 
-      <div className="flex items-center gap-4">
-        {/* Play/Pause button */}
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <p className="text-white text-sm font-medium truncate">{fileName}</p>
+        <p className="text-gray-500 text-xs shrink-0 font-mono tabular-nums">
+          {formatTime(currentTime)} / {formatTime(duration)}
+        </p>
+      </div>
+
+      {/* Waveform container */}
+      <div className="relative mb-4">
+        <div ref={containerRef} className="w-full" />
+
+        {!isReady && !error && (
+          <div className="absolute inset-0 flex items-center justify-center bg-surface-800/80 rounded-md">
+            <div className="flex items-center gap-2 text-gray-500 text-sm">
+              <div className="w-4 h-4 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
+              <span>Loading waveform…</span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="flex items-center gap-3">
         <button
-          onClick={isPlaying ? pause : play}
+          onClick={handlePlayPause}
+          disabled={!isReady}
           aria-label={isPlaying ? "Pause audio" : "Play audio"}
-          className="shrink-0 w-12 h-12 rounded-full bg-brand-500 hover:bg-brand-600 active:bg-brand-700 flex items-center justify-center transition-colors shadow-lg shadow-brand-500/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-800"
+          className="shrink-0 w-12 h-12 rounded-full bg-brand-500 hover:bg-brand-600 active:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-colors shadow-lg shadow-brand-500/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-800"
         >
           {isPlaying ? (
             <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
@@ -51,34 +140,9 @@ export default function AudioPlayer({ audioBuffer, fileName }: AudioPlayerProps)
           )}
         </button>
 
-        {/* Track info + progress */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between gap-2 mb-2">
-            <p className="text-white text-sm font-medium truncate">{fileName}</p>
-            <p className="text-gray-500 text-xs shrink-0 font-mono tabular-nums">
-              {formatTime(currentTime)} / {formatTime(duration)}
-            </p>
-          </div>
-
-          <div
-            onClick={handleProgressClick}
-            className="group relative h-2 bg-surface-600 rounded-full cursor-pointer overflow-hidden"
-            role="slider"
-            aria-label="Seek"
-            aria-valuemin={0}
-            aria-valuemax={duration}
-            aria-valuenow={currentTime}
-          >
-            <div
-              className="absolute left-0 top-0 h-full bg-brand-500 group-hover:bg-brand-400 transition-colors"
-              style={{ width: `${progressPercent}%` }}
-            />
-            <div
-              className="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-white opacity-0 group-hover:opacity-100 transition-opacity shadow-md"
-              style={{ left: `calc(${progressPercent}% - 6px)` }}
-            />
-          </div>
-        </div>
+        <p className="text-gray-500 text-xs hidden sm:block">
+          {isReady ? "Drag the waveform to scrub" : "Preparing audio…"}
+        </p>
       </div>
     </div>
   );

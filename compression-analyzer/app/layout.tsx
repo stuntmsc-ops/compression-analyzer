@@ -1,8 +1,15 @@
 import type { Metadata } from "next";
 import "./globals.css";
 
+// Vercel automatically sets VERCEL_URL (e.g. my-app-abc123.vercel.app) on deployed
+// builds. On local dev we fall back to localhost:3000. Replace this with your real
+// custom domain once you've set one up.
+const siteUrl = process.env.VERCEL_URL
+  ? `https://${process.env.VERCEL_URL}`
+  : "http://localhost:3000";
+
 export const metadata: Metadata = {
-  metadataBase: new URL("https://your-vercel-url.vercel.app"),
+  metadataBase: new URL(siteUrl),
   title: "Compression Analyzer — Personalized Compression Settings From Your Audio",
   description:
     "Upload your audio and get compression settings based on your actual sound. Built for producers and mixing engineers who want to stop guessing.",
