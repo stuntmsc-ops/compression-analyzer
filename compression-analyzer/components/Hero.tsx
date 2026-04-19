@@ -1,18 +1,32 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Button from "./Button";
 import AudioUploader from "./AudioUploader";
 import AudioPlayer from "./AudioPlayer";
+import AudioProfile from "./AudioProfile";
+import AnalyzingIndicator from "./AnalyzingIndicator";
 import SelectorPanel from "./SelectorPanel";
 import { decodeAudioFile } from "@/lib/audioContext";
+import { analyzeAudioBuffer, type AudioAnalysisResult } from "@/lib/audioAnalysis";
 import { DEFAULT_SELECTOR_STATE, type SelectorState } from "@/lib/types";
+
+/**
+ * Two-phase loading state. `decoding` runs while the browser is parsing
+ * the compressed audio into an AudioBuffer; `analyzing` runs while the
+ * pure-JS feature extractor crunches frames. Splitting them lets the UI
+ * show the user which stage is blocking — and lets us yield to the
+ * browser in between so the indicator actually paints before the
+ * synchronous analysis blocks the main thread.
+ */
+type LoadingPhase = "decoding" | "analyzing" | null;
 
 export default function Hero() {
   const [file, setFile] = useState<File | null>(null);
   const [audioBuffer, setAudioBuffer] = useState<AudioBuffer | null>(null);
+  const [analysis, setAnalysis] = useState<AudioAnalysisResult | null>(null);
   const [decodingError, setDecodingError] = useState<string | null>(null);
-  const [isDecoding, setIsDecoding] = useState(false);
+  const [loadingPhase, setLoadingPhase] = useState<LoadingPhase>(null);
   const [selectors, setSelectors] = useState<SelectorState>(DEFAULT_SELECTOR_STATE);
 
   useEffect(() => {
@@ -20,18 +34,41 @@ export default function Hero() {
     if (!file) return;
 
     const controller = new AbortController();
+    const decodeStart = performance.now();
 
     decodeAudioFile(file)
-      .then((buffer) => {
+      .then(async (buffer) => {
         if (controller.signal.aborted) return;
+        const decodeMs = performance.now() - decodeStart;
+
         setAudioBuffer(buffer);
+        setLoadingPhase("analyzing");
+
+        // Yield to the browser so React commits the "analyzing" state
+        // and the indicator animation paints before analyzeAudioBuffer
+        // blocks the main thread. A single rAF tick is enough; setTimeout
+        // is used because rAF can be throttled on background tabs.
+        await new Promise<void>((resolve) => setTimeout(resolve, 16));
+        if (controller.signal.aborted) return;
+
+        const analyzeStart = performance.now();
+        const result = analyzeAudioBuffer(buffer);
+        const analyzeMs = performance.now() - analyzeStart;
+
+        // Instrumentation — keeps Day 13's <3s goal measurable. Always
+        // logs so manual testing with different clip lengths is trivial.
+        console.log(
+          `[analysis] decode ${decodeMs.toFixed(0)}ms · analyze ${analyzeMs.toFixed(0)}ms · ${buffer.duration.toFixed(1)}s @ ${buffer.sampleRate}Hz`,
+        );
+
+        if (controller.signal.aborted) return;
+        setAnalysis(result);
+        setLoadingPhase(null);
       })
       .catch((err) => {
         if (controller.signal.aborted) return;
         setDecodingError(err instanceof Error ? err.message : "Decoding failed");
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setIsDecoding(false);
+        setLoadingPhase(null);
       });
 
     return () => {
@@ -43,17 +80,41 @@ export default function Hero() {
     // All synchronous state transitions for "new file" happen here
     // so the effect stays clean (see react-hooks/set-state-in-effect).
     setAudioBuffer(null);
+    setAnalysis(null);
     setDecodingError(null);
-    setIsDecoding(true);
+    setLoadingPhase("decoding");
     setFile(newFile);
   };
 
   const handleRemove = () => {
     setFile(null);
     setAudioBuffer(null);
+    setAnalysis(null);
     setDecodingError(null);
-    setIsDecoding(false);
+    setLoadingPhase(null);
   };
+
+  // Re-runs analysis against the already-decoded buffer. Skips the
+  // decode cost entirely — useful for iterating on classifiers without
+  // reloading the file, and as a recovery path if analysis ever needs
+  // to be re-attempted (e.g. after changing selector state that might
+  // parametrise analysis in the future).
+  const handleReanalyze = useCallback(() => {
+    if (!audioBuffer) return;
+    setAnalysis(null);
+    setLoadingPhase("analyzing");
+
+    // Same yield pattern as the effect so the indicator paints first.
+    setTimeout(() => {
+      const analyzeStart = performance.now();
+      const result = analyzeAudioBuffer(audioBuffer);
+      console.log(
+        `[analysis] re-analyze ${(performance.now() - analyzeStart).toFixed(0)}ms`,
+      );
+      setAnalysis(result);
+      setLoadingPhase(null);
+    }, 16);
+  }, [audioBuffer]);
 
   const scrollToUpload = () => {
     document.getElementById("upload-zone")?.scrollIntoView({ behavior: "smooth" });
@@ -113,11 +174,11 @@ export default function Hero() {
             <AudioUploader onFileSelected={handleFileSelected} />
           ) : (
             <div className="space-y-4">
-              {isDecoding && (
-                <div className="flex items-center gap-3 text-gray-400 text-sm px-1">
-                  <div className="w-4 h-4 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
-                  <span>Decoding audio…</span>
-                </div>
+              {loadingPhase === "decoding" && (
+                <AnalyzingIndicator label="Decoding audio…" className="px-1" />
+              )}
+              {loadingPhase === "analyzing" && (
+                <AnalyzingIndicator label="Analyzing audio…" className="px-1" />
               )}
 
               {decodingError && (
@@ -130,13 +191,26 @@ export default function Hero() {
                 <AudioPlayer file={file} fileName={file.name} />
               )}
 
+              {analysis && <AudioProfile analysis={analysis} />}
+
               <div className="flex items-center justify-between px-1">
                 <p className="text-gray-500 text-xs">
                   {(file.size / 1024 / 1024).toFixed(1)} MB · {file.type || "audio"}
                 </p>
-                <Button variant="ghost" size="sm" onClick={handleRemove}>
-                  Remove
-                </Button>
+                <div className="flex items-center gap-2">
+                  {analysis && loadingPhase === null && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleReanalyze}
+                    >
+                      Re-analyze
+                    </Button>
+                  )}
+                  <Button variant="ghost" size="sm" onClick={handleRemove}>
+                    Remove
+                  </Button>
+                </div>
               </div>
             </div>
           )}

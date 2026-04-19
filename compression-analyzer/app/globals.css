@@ -12,6 +12,20 @@
   --color-surface-700: #1a1a1d;
   --color-surface-600: #27272a;
   --color-surface-500: #3f3f46;
+
+  /* Audio-bars pulse used by the analysis loading indicator. The
+     bars scale on the Y axis so their bottoms stay pinned to the
+     baseline — matches how real level meters move. */
+  --animate-bars: bars 0.9s ease-in-out infinite;
+
+  @keyframes bars {
+    0%, 100% {
+      transform: scaleY(0.35);
+    }
+    50% {
+      transform: scaleY(1);
+    }
+  }
 }
 
 @layer base {

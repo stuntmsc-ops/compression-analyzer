@@ -1,6 +1,19 @@
 let cachedContext: AudioContext | null = null;
 
 /**
+ * Target sample rate for all analysis. 44.1kHz is the industry standard
+ * for music, and locking to a known rate means:
+ *   1. audioBuffer.sampleRate is predictable across OSes (Windows defaults
+ *      to 48kHz, macOS usually 44.1kHz, etc. — without this override users
+ *      on different systems would see different numbers)
+ *   2. Spectral feature calculations (Day 10+) produce comparable results
+ *      regardless of the source file's original sample rate
+ *
+ * decodeAudioData() resamples the incoming file to this rate automatically.
+ */
+const ANALYSIS_SAMPLE_RATE = 44100;
+
+/**
  * Returns a singleton AudioContext. Lazily creates it on first call
  * because AudioContext can only be created in the browser (not SSR).
  */
@@ -14,7 +27,14 @@ export function getAudioContext(): AudioContext {
       window.AudioContext ||
       (window as unknown as { webkitAudioContext: typeof AudioContext })
         .webkitAudioContext;
-    cachedContext = new Ctor();
+
+    // Some browsers refuse a requested rate that's far from the system rate.
+    // Fall back to the default context if construction fails.
+    try {
+      cachedContext = new Ctor({ sampleRate: ANALYSIS_SAMPLE_RATE });
+    } catch {
+      cachedContext = new Ctor();
+    }
   }
 
   return cachedContext;
