@@ -31,6 +31,11 @@ export default function Hero() {
   const [analysis, setAnalysis] = useState<AudioAnalysisResult | null>(null);
   const [decodingError, setDecodingError] = useState<string | null>(null);
   const [loadingPhase, setLoadingPhase] = useState<LoadingPhase>(null);
+  // Incremented by the Retry button on decode failure; included in the
+  // decode effect's deps so bumping it re-runs the effect against the
+  // same file. Re-decoding is cheap enough that this is simpler than
+  // lifting the decode logic into an imperative handler.
+  const [decodeAttempt, setDecodeAttempt] = useState(0);
   // Selectors are bound to `window.location.hash` through a custom hook
   // so any state is bookmarkable and shareable. The hook wraps
   // useSyncExternalStore — React 19 lint rules steer us off the
@@ -118,7 +123,20 @@ export default function Hero() {
     return () => {
       controller.abort();
     };
-  }, [file]);
+  }, [file, decodeAttempt]);
+
+  const handleRetryDecode = () => {
+    // Clear state that belongs to the failed attempt, then bump the
+    // attempt counter so the effect re-runs. Resetting audioBuffer /
+    // analysis is defensive — at the point the error banner shows they
+    // should already be null, but this makes the retry idempotent even
+    // if a caller expanded the state machine later.
+    setDecodingError(null);
+    setAudioBuffer(null);
+    setAnalysis(null);
+    setLoadingPhase("decoding");
+    setDecodeAttempt((n) => n + 1);
+  };
 
   const handleFileSelected = (newFile: File) => {
     // All synchronous state transitions for "new file" happen here
@@ -247,8 +265,17 @@ export default function Hero() {
               )}
 
               {decodingError && (
-                <div className="px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
-                  {decodingError}
+                <div className="px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 flex items-start gap-3">
+                  <p className="text-red-400 text-sm leading-relaxed flex-1 min-w-0">
+                    {decodingError}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleRetryDecode}
+                    className="shrink-0 text-red-300 hover:text-white border border-red-500/30 hover:border-red-400 hover:bg-red-500/20 rounded-md px-2 py-1 text-xs font-medium transition-colors"
+                  >
+                    Try again
+                  </button>
                 </div>
               )}
 

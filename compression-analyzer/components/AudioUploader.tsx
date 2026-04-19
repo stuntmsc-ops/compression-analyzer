@@ -15,6 +15,13 @@ export default function AudioUploader({ onFileSelected }: AudioUploaderProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // HTML drag events fire for every child element the cursor crosses —
+  // moving over the icon fires `dragleave` on the parent, which would
+  // clear `isDragging` even though the drag is still in flight. Tracking
+  // the enter/leave count in a ref lets us clear the state only when
+  // every entered element has also been left.
+  const dragDepthRef = useRef(0);
+
   const validateFile = (file: File): string | null => {
     const sizeMB = file.size / 1024 / 1024;
     if (sizeMB > MAX_FILE_SIZE_MB) {
@@ -47,21 +54,41 @@ export default function AudioUploader({ onFileSelected }: AudioUploaderProps) {
     if (file) handleFile(file);
   };
 
-  const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
+  const handleDragEnter = (e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
-    setIsDragging(true);
+    dragDepthRef.current += 1;
+    if (dragDepthRef.current === 1) setIsDragging(true);
+  };
+
+  const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
+    // MUST preventDefault for `drop` to fire at all — without this, the
+    // browser falls back to its default behaviour of opening the file.
+    e.preventDefault();
   };
 
   const handleDragLeave = (e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
-    setIsDragging(false);
+    dragDepthRef.current -= 1;
+    if (dragDepthRef.current <= 0) {
+      dragDepthRef.current = 0;
+      setIsDragging(false);
+    }
   };
 
   const handleDrop = (e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
+    dragDepthRef.current = 0;
     setIsDragging(false);
-    const file = e.dataTransfer.files?.[0];
-    if (file) handleFile(file);
+
+    const files = e.dataTransfer.files;
+    if (files.length === 0) return;
+    if (files.length > 1) {
+      setError(
+        `Drop one file at a time — got ${files.length}. Pick the single audio file you want to analyse.`,
+      );
+      return;
+    }
+    handleFile(files[0]);
   };
 
   const handleClick = () => {
@@ -72,6 +99,7 @@ export default function AudioUploader({ onFileSelected }: AudioUploaderProps) {
     <div>
       <div
         onClick={handleClick}
+        onDragEnter={handleDragEnter}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
