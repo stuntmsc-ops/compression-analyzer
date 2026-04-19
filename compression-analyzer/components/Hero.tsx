@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Button from "./Button";
 import AudioUploader from "./AudioUploader";
 import AudioPlayer from "./AudioPlayer";
@@ -10,7 +10,10 @@ import AnalyzingIndicator from "./AnalyzingIndicator";
 import SelectorPanel from "./SelectorPanel";
 import { decodeAudioFile } from "@/lib/audioContext";
 import { analyzeAudioBuffer, type AudioAnalysisResult } from "@/lib/audioAnalysis";
-import { DEFAULT_SELECTOR_STATE, type SelectorState } from "@/lib/types";
+import { useUrlSelectors } from "@/lib/urlState";
+
+type CopyLinkStatus = "idle" | "copied" | "failed";
+const COPY_LINK_FLASH_MS = 2000;
 
 /**
  * Two-phase loading state. `decoding` runs while the browser is parsing
@@ -28,7 +31,47 @@ export default function Hero() {
   const [analysis, setAnalysis] = useState<AudioAnalysisResult | null>(null);
   const [decodingError, setDecodingError] = useState<string | null>(null);
   const [loadingPhase, setLoadingPhase] = useState<LoadingPhase>(null);
-  const [selectors, setSelectors] = useState<SelectorState>(DEFAULT_SELECTOR_STATE);
+  // Selectors are bound to `window.location.hash` through a custom hook
+  // so any state is bookmarkable and shareable. The hook wraps
+  // useSyncExternalStore — React 19 lint rules steer us off the
+  // "setState inside useEffect" shape, and the hook also handles SSR
+  // hydration without a mismatch warning (server snapshot = defaults,
+  // client snapshot reads the real hash after hydration).
+  const [selectors, setSelectors] = useUrlSelectors();
+  const [copyLinkStatus, setCopyLinkStatus] = useState<CopyLinkStatus>("idle");
+
+  // ─── Copy-link button ────────────────────────────────────────────
+  //
+  // Same flash pattern as the RecommendationCard's Copy Settings button,
+  // scoped to this component so the two states don't cross-contaminate.
+  const copyLinkTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    return () => {
+      if (copyLinkTimerRef.current !== null) clearTimeout(copyLinkTimerRef.current);
+    };
+  }, []);
+
+  const handleCopyLink = useCallback(async () => {
+    try {
+      if (!navigator.clipboard) throw new Error("Clipboard API unavailable");
+      await navigator.clipboard.writeText(window.location.href);
+      setCopyLinkStatus("copied");
+    } catch {
+      setCopyLinkStatus("failed");
+    }
+    if (copyLinkTimerRef.current !== null) clearTimeout(copyLinkTimerRef.current);
+    copyLinkTimerRef.current = setTimeout(() => {
+      setCopyLinkStatus("idle");
+      copyLinkTimerRef.current = null;
+    }, COPY_LINK_FLASH_MS);
+  }, []);
+
+  const copyLinkLabel =
+    copyLinkStatus === "copied"
+      ? "Link copied"
+      : copyLinkStatus === "failed"
+        ? "Copy failed"
+        : "Copy share link";
 
   useEffect(() => {
     // When file is cleared, handleRemove owns the reset — nothing to do here.
@@ -165,6 +208,27 @@ export default function Hero() {
 
         {/* Analysis setup selectors */}
         <SelectorPanel value={selectors} onChange={setSelectors} />
+
+        {/* Share-link action — copies the current URL with selector state
+            encoded in the hash. Lives outside SelectorPanel so that
+            component's API stays focused on value/onChange. */}
+        <div className="max-w-2xl mx-auto mb-6 flex justify-end px-1">
+          <button
+            type="button"
+            onClick={handleCopyLink}
+            aria-label="Copy a shareable link to this setup"
+            aria-live="polite"
+            className={`text-[11px] font-medium px-2 py-1 rounded-md border transition-colors ${
+              copyLinkStatus === "copied"
+                ? "text-brand-300 border-brand-500/40 bg-brand-500/10"
+                : copyLinkStatus === "failed"
+                  ? "text-amber-300 border-amber-500/40 bg-amber-500/10"
+                  : "text-gray-500 border-surface-700 hover:text-white hover:border-surface-500 hover:bg-surface-800"
+            }`}
+          >
+            {copyLinkLabel}
+          </button>
+        </div>
 
         {/* Upload zone */}
         <div
