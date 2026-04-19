@@ -155,9 +155,34 @@ export default function RecommendationCard({
         </div>
       </section>
 
-      {/* Why these settings — Day 18 will template this with the
-          measured numbers; for now we surface the prior + goal notes
-          verbatim plus a short context line about the crest adjustment. */}
+      {/* Common mistake — rendered as a prominent amber banner when the
+          audio has a characteristic that would make the default advice
+          misleading. Null-safe: the generator returns null when no
+          caveat applies, and we render nothing in that case. */}
+      {rec.explanation.commonMistake && (
+        <div className="mb-4 rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2.5 flex gap-2.5 items-start">
+          <svg
+            className="w-4 h-4 text-amber-400 shrink-0 mt-0.5"
+            viewBox="0 0 20 20"
+            fill="currentColor"
+            aria-hidden="true"
+          >
+            <path
+              fillRule="evenodd"
+              d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 6a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 6zm0 9a1 1 0 100-2 1 1 0 000 2z"
+              clipRule="evenodd"
+            />
+          </svg>
+          <p className="text-amber-200/90 text-xs leading-relaxed min-w-0">
+            {rec.explanation.commonMistake}
+          </p>
+        </div>
+      )}
+
+      {/* Why these settings — templated prose keyed off the actual
+          measurements, not generic notes. The trailing gray line exposes
+          the raw numeric adjustments (peak GR target, crest deviation)
+          so engineers who want to sanity-check the math can see it. */}
       <details className="group pt-3 border-t border-surface-800">
         <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden text-gray-500 text-xs font-medium hover:text-gray-400 transition-colors flex items-center gap-1.5">
           <span className="inline-block transition-transform group-open:rotate-90">
@@ -166,9 +191,8 @@ export default function RecommendationCard({
           Why these settings
         </summary>
         <div className="mt-3 space-y-2.5 text-xs text-gray-400 leading-relaxed">
-          <p>{rec.prior.notes}</p>
-          <p>{rec.genre.notes}</p>
-          <p>{rec.goal.notes}</p>
+          <p>{rec.explanation.summary}</p>
+          <p>{rec.explanation.settingsRationale}</p>
           <p className="text-gray-600">
             Targeting ~{adjustments.targetPeakGrDb} dB gain reduction at peak.
             Ratio nudged by crest factor{" "}

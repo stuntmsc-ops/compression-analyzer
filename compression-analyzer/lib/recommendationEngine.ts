@@ -20,8 +20,9 @@
 // clamp is applied on goal bounds only, so no combination of genre +
 // crest can push the ratio into a regime the user didn't ask for.
 //
-// Day 18 will add templated "why" sentences using the `adjustments`
-// block and the prior/goal/genre `notes` strings.
+// Templated "why" sentences + a common-mistake warning are generated in
+// `./explanations` and attached to the recommendation, so the UI layer
+// never has to pattern-match on measurement ranges itself.
 //
 // Returns null for unanalysable input (silent file, non-finite peak) —
 // the caller guards the UI on null rather than rendering nonsense.
@@ -37,6 +38,7 @@ import {
   type GoalProfile,
   type GenreModifier,
 } from "./calibration";
+import { buildExplanation, type Explanation } from "./explanations";
 import type { InstrumentType, Genre, CompressionGoal } from "./types";
 
 // ─── Public type ───────────────────────────────────────────────────
@@ -61,6 +63,12 @@ export type CompressionRecommendation = {
     /** Target gain reduction at peak used to derive threshold. */
     targetPeakGrDb: number;
   };
+  /**
+   * Prose generated from the measurements + chosen settings. Kept on the
+   * recommendation itself so the UI can render it without re-deriving;
+   * the generator is pure so this is essentially a memoised string bundle.
+   */
+  explanation: Explanation;
 };
 
 // ─── Main entry point ──────────────────────────────────────────────
@@ -131,17 +139,28 @@ export function recommendCompression(
       : goalProfile.makeupStrategy.relativeDb;
   const makeupDb = roundDb(rawMakeupDb);
 
+  const settings: CompressionSettings = {
+    thresholdDb,
+    ratio,
+    attackMs,
+    releaseMs,
+    kneeDb,
+    makeupDb,
+  };
+  const adjustments = {
+    crestDeviationDb,
+    crestRatioMult,
+    genreRatioMult: genreMod.ratioMult,
+    targetPeakGrDb: goalProfile.targetPeakGrDb,
+  };
+
   return {
-    settings: { thresholdDb, ratio, attackMs, releaseMs, kneeDb, makeupDb },
+    settings,
     prior,
     goal: goalProfile,
     genre: genreMod,
-    adjustments: {
-      crestDeviationDb,
-      crestRatioMult,
-      genreRatioMult: genreMod.ratioMult,
-      targetPeakGrDb: goalProfile.targetPeakGrDb,
-    },
+    adjustments,
+    explanation: buildExplanation(analysis, settings, adjustments, instrument),
   };
 }
 
