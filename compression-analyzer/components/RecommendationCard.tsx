@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { AudioAnalysisResult } from "@/lib/audioAnalysis";
+import type { CompressionSettings } from "@/lib/calibration";
 import {
   GENRE_OPTIONS,
   GOAL_OPTIONS,
@@ -18,6 +19,15 @@ type Props = {
   genre: Genre;
   goal: CompressionGoal;
 };
+
+/**
+ * Transient label state for the Copy button. `idle` is the resting
+ * state; `copied` / `failed` flash for ~2s after an action. Kept as a
+ * three-valued union instead of a boolean so a failure doesn't collapse
+ * into the same visual as a success.
+ */
+type CopyStatus = "idle" | "copied" | "failed";
+const COPY_FLASH_MS = 2000;
 
 // ─── Formatting ────────────────────────────────────────────────────
 
@@ -45,6 +55,32 @@ function labelForGenre(v: Genre): string {
 
 function labelForGoal(v: CompressionGoal): string {
   return GOAL_OPTIONS.find((o) => o.value === v)?.label ?? v;
+}
+
+/**
+ * Build the plaintext block that lands on the user's clipboard. Same
+ * formatters as the on-screen tiles so "copy" and "read" always agree.
+ * Listed in the order a typical compressor plugin's signal flow: level
+ * thresholds first, then envelope, then makeup trim. Newline-separated
+ * and contextful so the block is self-describing when pasted into a
+ * notes app, Discord message, or project log.
+ */
+function formatSettingsForClipboard(
+  settings: CompressionSettings,
+  instrument: InstrumentType,
+  genre: Genre,
+  goal: CompressionGoal,
+): string {
+  const context = `${labelForInstrument(instrument)} / ${labelForGenre(genre)} / ${labelForGoal(goal)}`;
+  return [
+    `Compression Settings — ${context}`,
+    `Threshold: ${settings.thresholdDb.toFixed(1)} dB`,
+    `Ratio: ${formatRatio(settings.ratio)}`,
+    `Attack: ${formatMs(settings.attackMs)} ms`,
+    `Release: ${formatMs(settings.releaseMs)} ms`,
+    `Knee: ${settings.kneeDb} dB`,
+    `Makeup: ${formatSignedDb(settings.makeupDb)} dB`,
+  ].join("\n");
 }
 
 // ─── Sub-components ────────────────────────────────────────────────
@@ -94,6 +130,17 @@ export default function RecommendationCard({
     [analysis, instrument, genre, goal],
   );
 
+  const [copyStatus, setCopyStatus] = useState<CopyStatus>("idle");
+  // Hold the flash timer across renders so a second click resets the
+  // countdown instead of racing two overlapping timeouts. Also cleared
+  // on unmount so a post-unmount setState never fires.
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    return () => {
+      if (copyTimerRef.current !== null) clearTimeout(copyTimerRef.current);
+    };
+  }, []);
+
   // Engine returns null for silent / unmeasurable input. The warnings
   // banner in AudioProfile already tells the user why; here we just
   // refuse to render nonsense settings.
@@ -103,12 +150,61 @@ export default function RecommendationCard({
   const crestSign =
     adjustments.crestDeviationDb >= 0 ? "+" : "";
 
+  async function handleCopy() {
+    if (!rec) return;
+    const text = formatSettingsForClipboard(
+      rec.settings,
+      instrument,
+      genre,
+      goal,
+    );
+    // `navigator.clipboard` is undefined in insecure contexts and on
+    // some older browsers — guard before awaiting to give a useful
+    // failure state instead of an unhandled rejection.
+    try {
+      if (!navigator.clipboard) throw new Error("Clipboard API unavailable");
+      await navigator.clipboard.writeText(text);
+      setCopyStatus("copied");
+    } catch {
+      setCopyStatus("failed");
+    }
+    if (copyTimerRef.current !== null) clearTimeout(copyTimerRef.current);
+    copyTimerRef.current = setTimeout(() => {
+      setCopyStatus("idle");
+      copyTimerRef.current = null;
+    }, COPY_FLASH_MS);
+  }
+
+  const copyLabel =
+    copyStatus === "copied"
+      ? "Copied"
+      : copyStatus === "failed"
+        ? "Copy failed"
+        : "Copy";
+
   return (
     <div className="bg-surface-900 border border-surface-700 rounded-xl p-4 sm:p-5">
       <div className="flex items-center justify-between mb-4 gap-2">
-        <p className="text-gray-400 text-sm font-semibold">
-          Recommended Settings
-        </p>
+        <div className="flex items-center gap-2 min-w-0">
+          <p className="text-gray-400 text-sm font-semibold">
+            Recommended Settings
+          </p>
+          <button
+            type="button"
+            onClick={handleCopy}
+            aria-label="Copy settings to clipboard"
+            aria-live="polite"
+            className={`text-[11px] font-medium px-2 py-1 rounded-md border transition-colors tabular-nums ${
+              copyStatus === "copied"
+                ? "text-brand-300 border-brand-500/40 bg-brand-500/10"
+                : copyStatus === "failed"
+                  ? "text-amber-300 border-amber-500/40 bg-amber-500/10"
+                  : "text-gray-400 border-surface-700 hover:text-white hover:border-surface-500 hover:bg-surface-800"
+            }`}
+          >
+            {copyLabel}
+          </button>
+        </div>
         <span className="text-gray-600 text-xs text-right">
           {labelForInstrument(instrument)} · {labelForGenre(genre)} ·{" "}
           {labelForGoal(goal)}
