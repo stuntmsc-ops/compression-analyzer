@@ -17,7 +17,7 @@
 // the *starting point*, not the final answer. The engine adjusts them
 // based on what it measures.
 
-import type { InstrumentType, CompressionGoal } from "./types";
+import type { InstrumentType, Genre, CompressionGoal } from "./types";
 
 /**
  * A complete set of compressor settings, as a mixing engineer would
@@ -244,6 +244,91 @@ export const GOAL_PROFILES: Readonly<Record<CompressionGoal, GoalProfile>> = {
     makeupStrategy: "auto",
     notes:
       "The goal here is audible compression character — you want to hear it breathing. Slow attack + slow release makes the pump rhythmic and obvious. High ratio + harder knee makes each pump decisive rather than subtle.",
+  },
+} as const;
+
+// ─── Genre modifiers ───────────────────────────────────────────────
+
+/**
+ * Per-genre multiplicative character, applied on top of the
+ * instrument × goal composition. Captures aesthetic preferences that
+ * cut across instrument + goal — "hip-hop wants punchy and forward",
+ * "R&B wants warm and round", "lo-fi uses compression as an effect".
+ *
+ * All fields are relative — 1.0 means "no adjustment". The engine
+ * multiplies these into the base values after the goal multipliers,
+ * which stacks the genre flavour on top of the goal's intent without
+ * redefining what the goal wants to do.
+ */
+export type GenreModifier = {
+  /** Additional scalar on attack time. <1 faster, >1 slower. */
+  attackMult: number;
+  /** Additional scalar on release time. <1 faster, >1 slower. */
+  releaseMult: number;
+  /** Additional scalar on ratio. >1 more aggressive, <1 gentler. */
+  ratioMult: number;
+  /** Additional delta on knee width (dB). Negative = harder. */
+  kneeDeltaDb: number;
+  /** Human-readable rationale, surfaced by the UI "why" panel. */
+  notes: string;
+};
+
+export const GENRE_MODIFIERS: Readonly<Record<Genre, GenreModifier>> = {
+  "hip-hop": {
+    attackMult: 0.7,
+    releaseMult: 0.85,
+    ratioMult: 1.15,
+    kneeDeltaDb: -1,
+    notes:
+      "Hip-hop and trap lean on punchy, forward compression — a faster attack grabs transients and a slightly harder knee gives the compressor more grip. The result feels deliberate and modern.",
+  },
+  rnb: {
+    attackMult: 1.2,
+    releaseMult: 1.1,
+    ratioMult: 0.9,
+    kneeDeltaDb: 1,
+    notes:
+      "R&B flatters body and warmth. Slower attack lets the initial consonant through, softer knee keeps the compressor invisible, slightly lower ratio preserves the room and breath of the performance.",
+  },
+  pop: {
+    attackMult: 0.9,
+    releaseMult: 0.95,
+    ratioMult: 1.1,
+    kneeDeltaDb: 0,
+    notes:
+      "Pop compression is tight and radio-ready — enough ratio and speed to stay consistent across a verse/chorus/bridge, but never so aggressive that it calls attention to itself.",
+  },
+  rock: {
+    attackMult: 1.3,
+    releaseMult: 0.9,
+    ratioMult: 0.9,
+    kneeDeltaDb: -1,
+    notes:
+      "Rock lives on its transients. Slower attack preserves the pick and stick attack, gentler ratio leaves dynamic push intact, and a slightly harder knee keeps the compression feeling decisive rather than smeared.",
+  },
+  edm: {
+    attackMult: 0.85,
+    releaseMult: 0.7,
+    ratioMult: 1.1,
+    kneeDeltaDb: 0,
+    notes:
+      "Electronic production wants tight, punchy compression with a fast release — the quick recovery feeds into the pump-and-release aesthetic that gives EDM its forward motion.",
+  },
+  lofi: {
+    attackMult: 1.1,
+    releaseMult: 1.3,
+    ratioMult: 1.25,
+    kneeDeltaDb: -2,
+    notes:
+      "Lo-fi treats compression as a colour, not a tool. Slower release and higher ratio make the pumping audible; harder knee adds the nonlinear character that keeps the sound feeling hand-made rather than transparent.",
+  },
+  other: {
+    attackMult: 1,
+    releaseMult: 1,
+    ratioMult: 1,
+    kneeDeltaDb: 0,
+    notes:
+      "No genre-specific adjustment — settings reflect the source and goal only.",
   },
 } as const;
 

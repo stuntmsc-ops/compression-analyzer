@@ -5,6 +5,7 @@ import Button from "./Button";
 import AudioUploader from "./AudioUploader";
 import AudioPlayer from "./AudioPlayer";
 import AudioProfile from "./AudioProfile";
+import RecommendationCard from "./RecommendationCard";
 import AnalyzingIndicator from "./AnalyzingIndicator";
 import SelectorPanel from "./SelectorPanel";
 import { decodeAudioFile } from "@/lib/audioContext";
@@ -192,6 +193,15 @@ export default function Hero() {
               )}
 
               {analysis && <AudioProfile analysis={analysis} />}
+
+              {analysis && (
+                <RecommendationCard
+                  analysis={analysis}
+                  instrument={selectors.instrument}
+                  genre={selectors.genre}
+                  goal={selectors.goal}
+                />
+              )}
 
               <div className="flex items-center justify-between px-1">
                 <p className="text-gray-500 text-xs">
