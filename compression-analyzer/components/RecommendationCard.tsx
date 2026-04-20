@@ -12,6 +12,7 @@ import {
   type InstrumentType,
 } from "@/lib/types";
 import { recommendCompression } from "@/lib/recommendationEngine";
+import { computeDeltas } from "@/lib/delta";
 
 type Props = {
   analysis: AudioAnalysisResult;
@@ -59,57 +60,6 @@ function formatMs(ms: number): string {
 
 function formatSignedDb(db: number): string {
   return db > 0 ? `+${db.toFixed(1)}` : db.toFixed(1);
-}
-
-// ─── Delta helpers ────────────────────────────────────────────────
-//
-// Small signed annotations under each tile showing how much that
-// field moved since the last render. Epsilons filter floating-point
-// noise so unchanged fields don't flicker "+0.0" when a selector
-// toggle happens to leave them alone.
-const DELTA_EPSILON_DB = 0.05;
-const DELTA_EPSILON_RATIO = 0.05;
-const DELTA_EPSILON_MS = 0.5;
-
-function deltaLabelDb(diff: number): string | null {
-  if (Math.abs(diff) < DELTA_EPSILON_DB) return null;
-  const sign = diff > 0 ? "+" : "";
-  return `${sign}${diff.toFixed(1)} dB`;
-}
-
-function deltaLabelRatio(diff: number): string | null {
-  if (Math.abs(diff) < DELTA_EPSILON_RATIO) return null;
-  const sign = diff > 0 ? "+" : "";
-  return `${sign}${diff.toFixed(1)}`;
-}
-
-function deltaLabelMs(diff: number): string | null {
-  if (Math.abs(diff) < DELTA_EPSILON_MS) return null;
-  const sign = diff > 0 ? "+" : "";
-  const magnitude =
-    Math.abs(diff) >= 10 ? Math.round(diff).toString() : diff.toFixed(1);
-  return `${sign}${magnitude} ms`;
-}
-
-function computeDeltas(
-  current: CompressionSettings,
-  prev: CompressionSettings,
-): {
-  threshold: string | null;
-  ratio: string | null;
-  makeup: string | null;
-  attack: string | null;
-  release: string | null;
-  knee: string | null;
-} {
-  return {
-    threshold: deltaLabelDb(current.thresholdDb - prev.thresholdDb),
-    ratio: deltaLabelRatio(current.ratio - prev.ratio),
-    makeup: deltaLabelDb(current.makeupDb - prev.makeupDb),
-    attack: deltaLabelMs(current.attackMs - prev.attackMs),
-    release: deltaLabelMs(current.releaseMs - prev.releaseMs),
-    knee: deltaLabelDb(current.kneeDb - prev.kneeDb),
-  };
 }
 
 function labelForInstrument(v: InstrumentType): string {
