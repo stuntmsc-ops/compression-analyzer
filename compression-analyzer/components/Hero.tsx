@@ -6,6 +6,7 @@ import AudioUploader from "./AudioUploader";
 import AudioPlayer from "./AudioPlayer";
 import AudioProfile from "./AudioProfile";
 import RecommendationCard from "./RecommendationCard";
+import TechniqueCard from "./TechniqueCard";
 import AnalyzingIndicator from "./AnalyzingIndicator";
 import SelectorPanel from "./SelectorPanel";
 import { decodeAudioFile } from "@/lib/audioContext";
@@ -291,6 +292,18 @@ export default function Hero() {
                   instrument={selectors.instrument}
                   genre={selectors.genre}
                   goal={selectors.goal}
+                />
+              )}
+
+              {/* Technique recommendation — compression *approach*
+                  (serial / parallel / bus / standard) derived from the
+                  analysis + instrument. Rendered below the settings
+                  card so the user sees the knob positions first, then
+                  the how-to-apply-them guidance. */}
+              {analysis && (
+                <TechniqueCard
+                  analysis={analysis}
+                  instrument={selectors.instrument}
                 />
               )}
 

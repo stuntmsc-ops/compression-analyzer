@@ -19,6 +19,7 @@
 
 import type { AudioAnalysisResult } from "./audioAnalysis";
 import type { CompressionSettings } from "./calibration";
+import { dynamicRangeDb } from "./stats";
 import type { InstrumentType } from "./types";
 
 // ─── Public types ──────────────────────────────────────────────────
@@ -257,17 +258,5 @@ function aAn(word: string): string {
   return /^[aeiou]/i.test(word) ? "An" : "A";
 }
 
-// ─── Dynamic range ─────────────────────────────────────────────────
-//
-// P90 − P10 of the finite loudness windows. Kept local so this module
-// doesn't depend on AudioProfile's internal helper; if a third consumer
-// shows up (Day 21), promote it to a shared util.
-
-function dynamicRangeDb(series: readonly number[]): number {
-  const finite: number[] = [];
-  for (const v of series) if (Number.isFinite(v)) finite.push(v);
-  if (finite.length < 10) return 0;
-  const sorted = finite.slice().sort((a, b) => a - b);
-  const pick = (p: number) => sorted[Math.floor((p / 100) * (sorted.length - 1))];
-  return pick(90) - pick(10);
-}
+// Dynamic range (P90 − P10) lives in ./stats now — the technique
+// recommender is the third consumer the original local copy anticipated.
