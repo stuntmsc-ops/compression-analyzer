@@ -17,6 +17,7 @@
 //     0.5 ms is the tightest meaningful step.
 
 import type { CompressionSettings } from "./calibration";
+import { kneeCharacter } from "./knee";
 
 export const DELTA_EPSILON_DB = 0.05;
 export const DELTA_EPSILON_RATIO = 0.05;
@@ -55,6 +56,28 @@ export function deltaLabelMs(diff: number): string | null {
   return `${sign}${magnitude} ms`;
 }
 
+const KNEE_RANK: Record<ReturnType<typeof kneeCharacter>, number> = {
+  hard: 0,
+  medium: 1,
+  soft: 2,
+};
+
+/**
+ * Plain-language knee change when the bucket moves (no dB numbers).
+ * Same bucket after a selector tweak → null even if the underlying
+ * kneeDb nudged slightly.
+ */
+export function deltaLabelKnee(
+  prevKneeDb: number,
+  currentKneeDb: number,
+): string | null {
+  const prevC = kneeCharacter(prevKneeDb);
+  const curC = kneeCharacter(currentKneeDb);
+  if (prevC === curC) return null;
+  if (KNEE_RANK[curC] > KNEE_RANK[prevC]) return "Softer knee";
+  return "Harder knee";
+}
+
 /**
  * Bundle of per-field delta labels. `null` for any field that didn't
  * move beyond its epsilon so the UI can render an empty slot instead
@@ -85,6 +108,6 @@ export function computeDeltas(
     makeup: deltaLabelDb(current.makeupDb - prev.makeupDb),
     attack: deltaLabelMs(current.attackMs - prev.attackMs),
     release: deltaLabelMs(current.releaseMs - prev.releaseMs),
-    knee: deltaLabelDb(current.kneeDb - prev.kneeDb),
+    knee: deltaLabelKnee(prev.kneeDb, current.kneeDb),
   };
 }

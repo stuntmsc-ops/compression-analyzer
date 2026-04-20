@@ -9,9 +9,11 @@ import RecommendationCard from "./RecommendationCard";
 import TechniqueCard from "./TechniqueCard";
 import AnalyzingIndicator from "./AnalyzingIndicator";
 import SelectorPanel from "./SelectorPanel";
+import EmailGate from "./EmailGate";
 import { decodeAudioFile } from "@/lib/audioContext";
 import { analyzeAudioBuffer, type AudioAnalysisResult } from "@/lib/audioAnalysis";
 import { useUrlSelectors } from "@/lib/urlState";
+import { useEmailGate } from "@/lib/emailGate";
 
 type CopyLinkStatus = "idle" | "copied" | "failed";
 const COPY_LINK_FLASH_MS = 2000;
@@ -45,6 +47,12 @@ export default function Hero() {
   // client snapshot reads the real hash after hydration).
   const [selectors, setSelectors] = useUrlSelectors();
   const [copyLinkStatus, setCopyLinkStatus] = useState<CopyLinkStatus>("idle");
+  // Email-gate state lives in localStorage so a returning visitor isn't
+  // re-prompted every time they upload a new file. `emailSubmitted`
+  // drives whether the settings + technique cards render or the gate
+  // stands in their place; `markEmailSubmitted` is called from the
+  // EmailGate's success callback.
+  const [emailSubmitted, markEmailSubmitted] = useEmailGate();
 
   // ─── Copy-link button ────────────────────────────────────────────
   //
@@ -286,7 +294,17 @@ export default function Hero() {
 
               {analysis && <AudioProfile analysis={analysis} />}
 
-              {analysis && (
+              {/* Email gate — stands in for the payoff cards
+                  (RecommendationCard + TechniqueCard) until the user
+                  hands over an email. AudioPlayer and AudioProfile
+                  stay visible above so the user can see the tool
+                  measured their file before being asked to subscribe —
+                  no "wall of text then gate" surprise. */}
+              {analysis && !emailSubmitted && (
+                <EmailGate onSubmitted={markEmailSubmitted} />
+              )}
+
+              {analysis && emailSubmitted && (
                 <RecommendationCard
                   analysis={analysis}
                   instrument={selectors.instrument}
@@ -300,7 +318,7 @@ export default function Hero() {
                   analysis + instrument. Rendered below the settings
                   card so the user sees the knob positions first, then
                   the how-to-apply-them guidance. */}
-              {analysis && (
+              {analysis && emailSubmitted && (
                 <TechniqueCard
                   analysis={analysis}
                   instrument={selectors.instrument}

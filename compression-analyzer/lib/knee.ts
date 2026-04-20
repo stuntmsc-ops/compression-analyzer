@@ -1,8 +1,9 @@
 // Plain-language knee character for a numeric knee width.
 //
-// The engine rounds kneeDb to 0.5-dB steps and the plugin GUI shows it
-// as a number, but beginners don't have an internal ruler for what
-// "4 dB of knee" feels like. Mixing lore maps the width onto three
+// The engine still computes kneeDb in dB (and the user can dial a
+// number in their plugin), but the product UI speaks only in three
+// plain-language buckets so beginners aren't asked to interpret a dB
+// width they can't hear yet. Mixing lore maps the width onto three
 // broad characters:
 //
 //   hard   — the knee is either off or so narrow the transition is
@@ -41,4 +42,10 @@ export function kneeCharacter(kneeDb: number): KneeCharacter {
   if (!Number.isFinite(kneeDb) || kneeDb < KNEE_HARD_MAX_DB) return "hard";
   if (kneeDb < KNEE_MEDIUM_MAX_DB) return "medium";
   return "soft";
+}
+
+/** Title case label for UI and clipboard (`Hard`, `Medium`, `Soft`). */
+export function kneeCharacterTitle(kneeDb: number): string {
+  const c = kneeCharacter(kneeDb);
+  return c.charAt(0).toUpperCase() + c.slice(1);
 }

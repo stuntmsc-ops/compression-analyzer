@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   kneeCharacter,
+  kneeCharacterTitle,
   KNEE_HARD_MAX_DB,
   KNEE_MEDIUM_MAX_DB,
 } from "./knee";
@@ -48,5 +49,18 @@ describe("kneeCharacter", () => {
     { kneeDb: 9, character: "soft", scenario: "full-mix + smooth-consistency" },
   ])("$scenario → $kneeDb dB → $character", ({ kneeDb, character }) => {
     expect(kneeCharacter(kneeDb)).toBe(character);
+  });
+});
+
+describe("kneeCharacterTitle", () => {
+  it("title-cases each bucket", () => {
+    expect(kneeCharacterTitle(0)).toBe("Hard");
+    expect(kneeCharacterTitle(4)).toBe("Medium");
+    expect(kneeCharacterTitle(8)).toBe("Soft");
+  });
+
+  it("follows the same floors as kneeCharacter", () => {
+    expect(kneeCharacterTitle(KNEE_HARD_MAX_DB - 0.5)).toBe("Hard");
+    expect(kneeCharacterTitle(KNEE_HARD_MAX_DB)).toBe("Medium");
   });
 });

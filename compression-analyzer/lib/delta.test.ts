@@ -3,6 +3,7 @@ import type { CompressionSettings } from "./calibration";
 import {
   computeDeltas,
   deltaLabelDb,
+  deltaLabelKnee,
   deltaLabelMs,
   deltaLabelRatio,
 } from "./delta";
@@ -64,6 +65,23 @@ describe("deltaLabelMs", () => {
   });
 });
 
+describe("deltaLabelKnee", () => {
+  it("returns null when the bucket is unchanged", () => {
+    expect(deltaLabelKnee(3, 4)).toBeNull();
+    expect(deltaLabelKnee(0, 1)).toBeNull();
+  });
+
+  it("returns Harder knee when moving to a narrower bucket", () => {
+    expect(deltaLabelKnee(4, 1)).toBe("Harder knee");
+    expect(deltaLabelKnee(8, 3)).toBe("Harder knee");
+  });
+
+  it("returns Softer knee when moving to a wider bucket", () => {
+    expect(deltaLabelKnee(1, 4)).toBe("Softer knee");
+    expect(deltaLabelKnee(3, 8)).toBe("Softer knee");
+  });
+});
+
 describe("computeDeltas", () => {
   const prev: CompressionSettings = {
     thresholdDb: -10,
@@ -116,7 +134,7 @@ describe("computeDeltas", () => {
     expect(d.ratio).toBe("+0.4");
     expect(d.attack).toBe("+3.0 ms");
     expect(d.release).toBe("+25 ms");
-    expect(d.knee).toBe("-1.5 dB");
+    expect(d.knee).toBe("Harder knee");
     expect(d.makeup).toBe("+0.5 dB");
   });
 });

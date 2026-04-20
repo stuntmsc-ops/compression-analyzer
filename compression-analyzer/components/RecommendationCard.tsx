@@ -13,7 +13,7 @@ import {
 } from "@/lib/types";
 import { recommendCompression } from "@/lib/recommendationEngine";
 import { computeDeltas } from "@/lib/delta";
-import { kneeCharacter } from "@/lib/knee";
+import { kneeCharacterTitle } from "@/lib/knee";
 
 type Props = {
   analysis: AudioAnalysisResult;
@@ -96,7 +96,7 @@ function formatSettingsForClipboard(
     `Ratio: ${formatRatio(settings.ratio)}`,
     `Attack: ${formatMs(settings.attackMs)} ms`,
     `Release: ${formatMs(settings.releaseMs)} ms`,
-    `Knee: ${settings.kneeDb} dB (${kneeCharacter(settings.kneeDb)})`,
+    `Knee: ${kneeCharacterTitle(settings.kneeDb)}`,
     `Makeup: ${formatSignedDb(settings.makeupDb)} dB`,
   ].join("\n");
 }
@@ -313,9 +313,7 @@ export default function RecommendationCard({
           />
           <SettingTile
             label="Knee"
-            value={settings.kneeDb.toString()}
-            unit="dB"
-            character={kneeCharacter(settings.kneeDb)}
+            value={kneeCharacterTitle(settings.kneeDb)}
             delta={deltas?.knee}
           />
         </div>
