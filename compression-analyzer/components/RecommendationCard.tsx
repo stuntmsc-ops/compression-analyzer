@@ -29,6 +29,22 @@ type Props = {
 type CopyStatus = "idle" | "copied" | "failed";
 const COPY_FLASH_MS = 2000;
 
+// ─── Hook utilities ───────────────────────────────────────────────
+//
+// Classic "previous value" pattern. React 19's `react-hooks/refs` rule
+// flags ref reads during render — but that's exactly the intent here:
+// track the last-committed value so the next frame's delta annotation
+// has something to compare against. Suppression is scoped to this hook
+// so call sites stay lint-clean and read like plain locals.
+function usePrevious<T>(value: T): T | null {
+  const ref = useRef<T | null>(null);
+  useEffect(() => {
+    ref.current = value;
+  }, [value]);
+  // eslint-disable-next-line react-hooks/refs
+  return ref.current;
+}
+
 // ─── Formatting ────────────────────────────────────────────────────
 
 function formatRatio(r: number): string {
@@ -43,6 +59,57 @@ function formatMs(ms: number): string {
 
 function formatSignedDb(db: number): string {
   return db > 0 ? `+${db.toFixed(1)}` : db.toFixed(1);
+}
+
+// ─── Delta helpers ────────────────────────────────────────────────
+//
+// Small signed annotations under each tile showing how much that
+// field moved since the last render. Epsilons filter floating-point
+// noise so unchanged fields don't flicker "+0.0" when a selector
+// toggle happens to leave them alone.
+const DELTA_EPSILON_DB = 0.05;
+const DELTA_EPSILON_RATIO = 0.05;
+const DELTA_EPSILON_MS = 0.5;
+
+function deltaLabelDb(diff: number): string | null {
+  if (Math.abs(diff) < DELTA_EPSILON_DB) return null;
+  const sign = diff > 0 ? "+" : "";
+  return `${sign}${diff.toFixed(1)} dB`;
+}
+
+function deltaLabelRatio(diff: number): string | null {
+  if (Math.abs(diff) < DELTA_EPSILON_RATIO) return null;
+  const sign = diff > 0 ? "+" : "";
+  return `${sign}${diff.toFixed(1)}`;
+}
+
+function deltaLabelMs(diff: number): string | null {
+  if (Math.abs(diff) < DELTA_EPSILON_MS) return null;
+  const sign = diff > 0 ? "+" : "";
+  const magnitude =
+    Math.abs(diff) >= 10 ? Math.round(diff).toString() : diff.toFixed(1);
+  return `${sign}${magnitude} ms`;
+}
+
+function computeDeltas(
+  current: CompressionSettings,
+  prev: CompressionSettings,
+): {
+  threshold: string | null;
+  ratio: string | null;
+  makeup: string | null;
+  attack: string | null;
+  release: string | null;
+  knee: string | null;
+} {
+  return {
+    threshold: deltaLabelDb(current.thresholdDb - prev.thresholdDb),
+    ratio: deltaLabelRatio(current.ratio - prev.ratio),
+    makeup: deltaLabelDb(current.makeupDb - prev.makeupDb),
+    attack: deltaLabelMs(current.attackMs - prev.attackMs),
+    release: deltaLabelMs(current.releaseMs - prev.releaseMs),
+    knee: deltaLabelDb(current.kneeDb - prev.kneeDb),
+  };
 }
 
 function labelForInstrument(v: InstrumentType): string {
@@ -89,10 +156,12 @@ function SettingTile({
   label,
   value,
   unit,
+  delta,
 }: {
   label: string;
   value: string;
   unit?: string;
+  delta?: string | null;
 }) {
   return (
     <div className="flex flex-col bg-surface-800 border border-surface-700 rounded-lg px-3 py-2.5">
@@ -104,6 +173,16 @@ function SettingTile({
         {unit && (
           <span className="text-gray-500 text-sm font-normal ml-1">{unit}</span>
         )}
+      </span>
+      {/* Delta row — reserved height with a non-breaking space
+          placeholder so tiles don't jitter between renders that have
+          deltas and those that don't. aria-hidden when empty so
+          screen readers skip the filler. */}
+      <span
+        className="mt-1.5 text-gray-500 text-[10px] font-medium tabular-nums"
+        aria-hidden={delta ? undefined : true}
+      >
+        {delta ?? "\u00A0"}
       </span>
     </div>
   );
@@ -141,6 +220,14 @@ export default function RecommendationCard({
     };
   }, []);
 
+  // Previous settings snapshot for delta annotations. Also tracks the
+  // analysis reference — when the user swaps in a new file the prior
+  // settings come from a different source of truth and the delta
+  // would be a "change of file", not a "change of selector". Dropping
+  // the comparison across a file swap keeps annotations meaningful.
+  const prevSettings = usePrevious(rec?.settings ?? null);
+  const prevAnalysis = usePrevious(analysis);
+
   // Engine returns null for silent / unmeasurable input. The warnings
   // banner in AudioProfile already tells the user why; here we just
   // refuse to render nonsense settings.
@@ -149,6 +236,15 @@ export default function RecommendationCard({
   const { settings, adjustments } = rec;
   const crestSign =
     adjustments.crestDeviationDb >= 0 ? "+" : "";
+
+  // Only annotate deltas when we have a prior snapshot AND the
+  // analysis hasn't changed — a new file starts the delta chain
+  // over, so the next selector toggle (not the file swap itself) is
+  // the first annotated render.
+  const deltas =
+    prevSettings && prevAnalysis === analysis
+      ? computeDeltas(settings, prevSettings)
+      : null;
 
   async function handleCopy() {
     if (!rec) return;
@@ -219,12 +315,18 @@ export default function RecommendationCard({
             label="Threshold"
             value={settings.thresholdDb.toFixed(1)}
             unit="dB"
+            delta={deltas?.threshold}
           />
-          <SettingTile label="Ratio" value={formatRatio(settings.ratio)} />
+          <SettingTile
+            label="Ratio"
+            value={formatRatio(settings.ratio)}
+            delta={deltas?.ratio}
+          />
           <SettingTile
             label="Makeup"
             value={formatSignedDb(settings.makeupDb)}
             unit="dB"
+            delta={deltas?.makeup}
           />
         </div>
       </section>
@@ -237,16 +339,19 @@ export default function RecommendationCard({
             label="Attack"
             value={formatMs(settings.attackMs)}
             unit="ms"
+            delta={deltas?.attack}
           />
           <SettingTile
             label="Release"
             value={formatMs(settings.releaseMs)}
             unit="ms"
+            delta={deltas?.release}
           />
           <SettingTile
             label="Knee"
             value={settings.kneeDb.toString()}
             unit="dB"
+            delta={deltas?.knee}
           />
         </div>
       </section>
