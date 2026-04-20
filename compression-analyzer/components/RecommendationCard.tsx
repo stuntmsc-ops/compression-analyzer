@@ -13,6 +13,7 @@ import {
 } from "@/lib/types";
 import { recommendCompression } from "@/lib/recommendationEngine";
 import { computeDeltas } from "@/lib/delta";
+import { kneeCharacter } from "@/lib/knee";
 
 type Props = {
   analysis: AudioAnalysisResult;
@@ -95,7 +96,7 @@ function formatSettingsForClipboard(
     `Ratio: ${formatRatio(settings.ratio)}`,
     `Attack: ${formatMs(settings.attackMs)} ms`,
     `Release: ${formatMs(settings.releaseMs)} ms`,
-    `Knee: ${settings.kneeDb} dB`,
+    `Knee: ${settings.kneeDb} dB (${kneeCharacter(settings.kneeDb)})`,
     `Makeup: ${formatSignedDb(settings.makeupDb)} dB`,
   ].join("\n");
 }
@@ -106,11 +107,19 @@ function SettingTile({
   label,
   value,
   unit,
+  character,
   delta,
 }: {
   label: string;
   value: string;
   unit?: string;
+  /**
+   * Optional plain-language qualifier rendered inline with the unit
+   * (e.g. "medium" next to a knee of "4 dB"). Kept on the same line as
+   * the number so tiles without a character stay the same height as
+   * those with one — the row doesn't grow or jitter.
+   */
+  character?: string;
   delta?: string | null;
 }) {
   return (
@@ -122,6 +131,11 @@ function SettingTile({
         {value}
         {unit && (
           <span className="text-gray-500 text-sm font-normal ml-1">{unit}</span>
+        )}
+        {character && (
+          <span className="text-gray-500 text-sm font-normal ml-1.5">
+            · {character}
+          </span>
         )}
       </span>
       {/* Delta row — reserved height with a non-breaking space
@@ -301,6 +315,7 @@ export default function RecommendationCard({
             label="Knee"
             value={settings.kneeDb.toString()}
             unit="dB"
+            character={kneeCharacter(settings.kneeDb)}
             delta={deltas?.knee}
           />
         </div>
