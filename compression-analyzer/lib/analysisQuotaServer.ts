@@ -143,7 +143,7 @@ export function quotaUnavailableResponseBody(
 ): { ok: false; error: string; skipReason: QuotaEnvSkipReason } {
   const error: Record<QuotaEnvSkipReason, string> = {
     missing_env:
-      "Analysis quota is not configured: set UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN (or KV_REST_API_URL and KV_REST_API_TOKEN) for the Production environment on Vercel, then redeploy.",
+      "Analysis quota is not configured: set UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN (or KV_REST_API_URL and KV_REST_API_TOKEN) for the Production environment on Vercel, then redeploy. If both name prefixes exist, delete any empty UPSTASH_* entries so the KV_* pair can be used.",
     empty_after_strip:
       "Analysis quota env values are blank after trimming. Re-paste the Redis REST URL and token in Vercel (Production) with no stray quotes, then redeploy.",
     vector_or_search_host:
@@ -158,15 +158,50 @@ type QuotaCredsResolved =
   | { ok: true; creds: QuotaRestCredentials }
   | { ok: false; reason: QuotaEnvSkipReason };
 
+function strippedHasChars(value: string | undefined): boolean {
+  if (value === undefined) return false;
+  return stripEnvLine(value).replace(/\s/g, "").length > 0;
+}
+
+/**
+ * Prefer a complete UPSTASH_* pair, then a complete KV_* pair. Using `??`
+ * alone breaks when UPSTASH_* keys exist but are empty strings on Vercel,
+ * which would hide a valid KV_* pair.
+ */
+function pickRedisRestRawPair(): { rawUrl: string; rawToken: string } | null {
+  const u1 = process.env.UPSTASH_REDIS_REST_URL;
+  const t1 = process.env.UPSTASH_REDIS_REST_TOKEN;
+  if (strippedHasChars(u1) && strippedHasChars(t1)) {
+    return { rawUrl: u1!, rawToken: t1! };
+  }
+  const u2 = process.env.KV_REST_API_URL;
+  const t2 = process.env.KV_REST_API_TOKEN;
+  if (strippedHasChars(u2) && strippedHasChars(t2)) {
+    return { rawUrl: u2!, rawToken: t2! };
+  }
+  return null;
+}
+
+function anyRedisEnvVarNonEmpty(): boolean {
+  return [
+    process.env.UPSTASH_REDIS_REST_URL,
+    process.env.UPSTASH_REDIS_REST_TOKEN,
+    process.env.KV_REST_API_URL,
+    process.env.KV_REST_API_TOKEN,
+  ].some(strippedHasChars);
+}
+
 function resolveQuotaRestCredentials(): QuotaCredsResolved {
-  const rawUrl =
-    process.env.UPSTASH_REDIS_REST_URL ?? process.env.KV_REST_API_URL;
-  const rawToken =
-    process.env.UPSTASH_REDIS_REST_TOKEN ?? process.env.KV_REST_API_TOKEN;
-  if (!rawUrl || !rawToken) {
-    return { ok: false, reason: "missing_env" };
+  const pair = pickRedisRestRawPair();
+  if (!pair) {
+    return {
+      ok: false,
+      reason: anyRedisEnvVarNonEmpty() ? "empty_after_strip" : "missing_env",
+    };
   }
 
+  const rawUrl = pair.rawUrl;
+  const rawToken = pair.rawToken;
   const url = stripEnvLine(rawUrl).replace(/\s/g, "");
   const token = stripEnvLine(rawToken);
   if (!url || !token) {

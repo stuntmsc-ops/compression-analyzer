@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import { beforeEach, describe, it, expect } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   utcDateKey,
   quotaRedisKey,
@@ -9,6 +9,7 @@ import {
   normalizeQuotaRestBaseUrl,
   looksLikeUpstashVectorOrSearchRestUrl,
   quotaUnavailableResponseBody,
+  resolveQuotaBackend,
 } from "./analysisQuotaServer";
 import { FREE_DAILY_ANALYSIS_LIMIT } from "./quotaConstants";
 
@@ -49,6 +50,56 @@ describe("normalizeQuotaRestBaseUrl", () => {
     expect(normalizeQuotaRestBaseUrl('"https://x.example/pipeline"')).toBe(
       "https://x.example",
     );
+  });
+});
+
+const QUOTA_ENV_KEYS = [
+  "UPSTASH_REDIS_REST_URL",
+  "UPSTASH_REDIS_REST_TOKEN",
+  "KV_REST_API_URL",
+  "KV_REST_API_TOKEN",
+] as const;
+
+describe("resolveQuotaBackend env pairing", () => {
+  let saved: Partial<
+    Record<(typeof QUOTA_ENV_KEYS)[number], string | undefined>
+  >;
+
+  beforeEach(() => {
+    saved = {};
+    for (const k of QUOTA_ENV_KEYS) {
+      saved[k] = process.env[k];
+      delete process.env[k];
+    }
+  });
+
+  afterEach(() => {
+    for (const k of QUOTA_ENV_KEYS) {
+      if (saved[k] === undefined) delete process.env[k];
+      else process.env[k] = saved[k];
+    }
+  });
+
+  it("uses KV_* when UPSTASH_* are empty strings", () => {
+    process.env.UPSTASH_REDIS_REST_URL = "";
+    process.env.UPSTASH_REDIS_REST_TOKEN = "";
+    process.env.KV_REST_API_URL = "https://us1-example.upstash.io";
+    process.env.KV_REST_API_TOKEN = "tok";
+    const r = resolveQuotaBackend();
+    expect(r.backend).toBe("redis");
+    expect(r.rest?.baseUrl).toBe("https://us1-example.upstash.io");
+    expect(r.rest?.token).toBe("tok");
+  });
+
+  it("prefers UPSTASH_* when both pairs are complete", () => {
+    process.env.UPSTASH_REDIS_REST_URL = "https://us1-a.upstash.io";
+    process.env.UPSTASH_REDIS_REST_TOKEN = "t1";
+    process.env.KV_REST_API_URL = "https://us1-b.upstash.io";
+    process.env.KV_REST_API_TOKEN = "t2";
+    const r = resolveQuotaBackend();
+    expect(r.backend).toBe("redis");
+    expect(r.rest?.baseUrl).toBe("https://us1-a.upstash.io");
+    expect(r.rest?.token).toBe("t1");
   });
 });
 
