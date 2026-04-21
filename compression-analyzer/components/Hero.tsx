@@ -34,6 +34,10 @@ import {
 type CopyLinkStatus = "idle" | "copied" | "failed";
 const COPY_LINK_FLASH_MS = 2000;
 
+function fileQuotaKey(f: File): string {
+  return `${f.name}|${f.size}|${f.lastModified}`;
+}
+
 /**
  * Two-phase loading state. `decoding` runs while the browser is parsing
  * the compressed audio into an AudioBuffer; `analyzing` runs while the
@@ -66,13 +70,15 @@ export default function Hero() {
   // Email-gate state lives in localStorage so a returning visitor isn't
   // re-prompted every time they upload a new file. `emailSubmitted`
   // drives whether the settings + technique cards render or the gate
-  // stands in their place; `markEmailSubmitted` is called from the
-  // EmailGate's success callback.
+  // stands in their place; `handleEmailGateSuccess` runs after the gate
+  // API succeeds (marks submitted + records free-tier quota once).
   const [emailSubmitted, markEmailSubmitted] = useEmailGate();
   const { paidUnlocked, markPaidUnlocked, sessionStatus, userId } = useTier();
   const { quota, canStartNewAnalysis, recordAfterSuccess } =
     useAnalysisQuota(paidUnlocked);
   const [quotaError, setQuotaError] = useState<string | null>(null);
+  /** Free-tier quota counts only after settings are unlockable; at most once per upload. */
+  const quotaRecordedFileKeyRef = useRef<string | null>(null);
 
   // Free tier only supports vocal — deep links with another instrument
   // are clamped before paint to avoid a one-frame invalid <select> value.
@@ -118,6 +124,23 @@ export default function Hero() {
         ? "Could not copy (try the address bar)"
         : "Copy share link";
 
+  const recordFreeTierIfNeeded = useCallback(
+    async (f: File) => {
+      if (paidUnlocked) return;
+      const key = fileQuotaKey(f);
+      if (quotaRecordedFileKeyRef.current === key) return;
+      quotaRecordedFileKeyRef.current = key;
+      await recordAfterSuccess();
+    },
+    [paidUnlocked, recordAfterSuccess],
+  );
+
+  const handleEmailGateSuccess = useCallback(async () => {
+    markEmailSubmitted();
+    if (!file) return;
+    await recordFreeTierIfNeeded(file);
+  }, [file, markEmailSubmitted, recordFreeTierIfNeeded]);
+
   useEffect(() => {
     // When file is cleared, handleRemove owns the reset — nothing to do here.
     if (!file) return;
@@ -160,8 +183,10 @@ export default function Hero() {
         if (controller.signal.aborted) return;
         setAnalysis(result);
         setLoadingPhase(null);
-        if (!paidUnlocked) {
-          await recordAfterSuccess();
+        // Free tier: count toward daily quota only once the user can see settings
+        // (email already on file) or will right after they submit the gate.
+        if (!paidUnlocked && emailSubmitted) {
+          await recordFreeTierIfNeeded(file);
         }
       })
       .catch((err) => {
@@ -175,7 +200,7 @@ export default function Hero() {
     return () => {
       controller.abort();
     };
-  }, [file, decodeAttempt, paidUnlocked, recordAfterSuccess]);
+  }, [file, decodeAttempt, paidUnlocked, emailSubmitted, recordFreeTierIfNeeded]);
 
   const handleRetryDecode = () => {
     // Clear state that belongs to the failed attempt, then bump the
@@ -200,6 +225,7 @@ export default function Hero() {
     }
     // All synchronous state transitions for "new file" happen here
     // so the effect stays clean (see react-hooks/set-state-in-effect).
+    quotaRecordedFileKeyRef.current = null;
     setAudioBuffer(null);
     setAnalysis(null);
     setDecodingError(null);
@@ -208,6 +234,7 @@ export default function Hero() {
   };
 
   const handleRemove = () => {
+    quotaRecordedFileKeyRef.current = null;
     setFile(null);
     setAudioBuffer(null);
     setAnalysis(null);
@@ -380,7 +407,7 @@ export default function Hero() {
                   measured their file before being asked to subscribe —
                   no "wall of text then gate" surprise. */}
               {analysis && !emailSubmitted && (
-                <EmailGate onSubmitted={markEmailSubmitted} />
+                <EmailGate onSubmitted={handleEmailGateSuccess} />
               )}
 
               {analysis && emailSubmitted && (

@@ -10,7 +10,7 @@ type Props = {
   /** Called after the server accepts the submission. The parent is
    *  responsible for persisting the "already submitted" flag — this
    *  component does not touch localStorage directly. */
-  onSubmitted: () => void;
+  onSubmitted: () => void | Promise<void>;
 };
 
 /**
@@ -68,7 +68,9 @@ export default function EmailGate({ onSubmitted }: Props) {
       setPhase({ kind: "confirming" });
       // Short delay so the "check your inbox" note is perceptible;
       // 1.5s is long enough to read, short enough to not feel stuck.
-      setTimeout(onSubmitted, 1500);
+      setTimeout(() => {
+        void Promise.resolve(onSubmitted()).catch(console.error);
+      }, 1500);
     } catch (err) {
       setPhase({
         kind: "failed",
