@@ -8,6 +8,7 @@ import {
   resetMemoryQuotaForTests,
   normalizeQuotaRestBaseUrl,
   looksLikeUpstashVectorOrSearchRestUrl,
+  quotaUnavailableResponseBody,
 } from "./analysisQuotaServer";
 import { FREE_DAILY_ANALYSIS_LIMIT } from "./quotaConstants";
 
@@ -48,6 +49,15 @@ describe("normalizeQuotaRestBaseUrl", () => {
     expect(normalizeQuotaRestBaseUrl('"https://x.example/pipeline"')).toBe(
       "https://x.example",
     );
+  });
+});
+
+describe("quotaUnavailableResponseBody", () => {
+  it("includes skipReason matching the code", () => {
+    const b = quotaUnavailableResponseBody("vector_or_search_host");
+    expect(b.ok).toBe(false);
+    expect(b.skipReason).toBe("vector_or_search_host");
+    expect(b.error).toContain("Search or Vector");
   });
 });
 

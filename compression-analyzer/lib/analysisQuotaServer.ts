@@ -131,16 +131,47 @@ export type QuotaRestCredentials = {
   token: string;
 };
 
-function getQuotaRestCredentials(): QuotaRestCredentials | null {
+/** Why Redis quota is unavailable in production (safe to return to the client). */
+export type QuotaEnvSkipReason =
+  | "missing_env"
+  | "empty_after_strip"
+  | "vector_or_search_host"
+  | "invalid_host";
+
+export function quotaUnavailableResponseBody(
+  reason: QuotaEnvSkipReason,
+): { ok: false; error: string; skipReason: QuotaEnvSkipReason } {
+  const error: Record<QuotaEnvSkipReason, string> = {
+    missing_env:
+      "Analysis quota is not configured: set UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN (or KV_REST_API_URL and KV_REST_API_TOKEN) for the Production environment on Vercel, then redeploy.",
+    empty_after_strip:
+      "Analysis quota env values are blank after trimming. Re-paste the Redis REST URL and token in Vercel (Production) with no stray quotes, then redeploy.",
+    vector_or_search_host:
+      "Analysis quota REST URL is Upstash Search or Vector, not Redis. In Upstash open Redis → your database → REST API and copy that URL and token into Vercel, then redeploy.",
+    invalid_host:
+      "Analysis quota REST URL must be a public HTTPS Upstash Redis host (not localhost). Update Vercel Production env and redeploy.",
+  };
+  return { ok: false, error: error[reason], skipReason: reason };
+}
+
+type QuotaCredsResolved =
+  | { ok: true; creds: QuotaRestCredentials }
+  | { ok: false; reason: QuotaEnvSkipReason };
+
+function resolveQuotaRestCredentials(): QuotaCredsResolved {
   const rawUrl =
     process.env.UPSTASH_REDIS_REST_URL ?? process.env.KV_REST_API_URL;
   const rawToken =
     process.env.UPSTASH_REDIS_REST_TOKEN ?? process.env.KV_REST_API_TOKEN;
-  if (!rawUrl || !rawToken) return null;
+  if (!rawUrl || !rawToken) {
+    return { ok: false, reason: "missing_env" };
+  }
 
   const url = stripEnvLine(rawUrl).replace(/\s/g, "");
   const token = stripEnvLine(rawToken);
-  if (!url || !token) return null;
+  if (!url || !token) {
+    return { ok: false, reason: "empty_after_strip" };
+  }
 
   const baseUrl = normalizeQuotaRestBaseUrl(url);
 
@@ -148,17 +179,14 @@ function getQuotaRestCredentials(): QuotaRestCredentials | null {
     console.error(
       "[analysis-quota] UPSTASH_REDIS_REST_URL / KV_REST_API_URL points at Upstash Search or Vector (hostname contains -search or -vector before .upstash.io), not Redis. Open Upstash → Redis → your database → REST API and copy that URL and token. Ignoring these credentials.",
     );
-    return null;
+    return { ok: false, reason: "vector_or_search_host" };
   }
 
-  if (process.env.NODE_ENV !== "production" && isObviousNonRestUrl(baseUrl)) {
-    console.warn(
-      "[analysis-quota] REST URL is localhost or not a valid URL; ignoring Redis and using in-memory quota in development. Fix UPSTASH_REDIS_REST_URL / KV_REST_API_URL or unset it.",
-    );
-    return null;
+  if (isObviousNonRestUrl(baseUrl)) {
+    return { ok: false, reason: "invalid_host" };
   }
 
-  return { baseUrl, token };
+  return { ok: true, creds: { baseUrl, token } };
 }
 
 type UpstashRestPayload = { result?: unknown; error?: string };
@@ -250,14 +278,29 @@ function memoryKey(sessionId: string, date: string): string {
 
 export type QuotaBackend = "redis" | "memory" | "none";
 
-export function resolveQuotaBackend(): {
+export type ResolvedQuotaBackend = {
   backend: QuotaBackend;
   rest: QuotaRestCredentials | null;
-} {
-  const rest = getQuotaRestCredentials();
-  if (rest) return { backend: "redis", rest };
+  /** Present when `backend === "none"` (production, Redis not usable). */
+  productionUnavailableReason?: QuotaEnvSkipReason;
+};
+
+export function resolveQuotaBackend(): ResolvedQuotaBackend {
+  const r = resolveQuotaRestCredentials();
+  if (r.ok) {
+    return { backend: "redis", rest: r.creds };
+  }
   if (process.env.NODE_ENV === "production") {
-    return { backend: "none", rest: null };
+    return {
+      backend: "none",
+      rest: null,
+      productionUnavailableReason: r.reason,
+    };
+  }
+  if (r.reason === "invalid_host") {
+    console.warn(
+      "[analysis-quota] REST URL is localhost or not a valid URL; ignoring Redis and using in-memory quota in development. Fix UPSTASH_REDIS_REST_URL / KV_REST_API_URL or unset it.",
+    );
   }
   return { backend: "memory", rest: null };
 }

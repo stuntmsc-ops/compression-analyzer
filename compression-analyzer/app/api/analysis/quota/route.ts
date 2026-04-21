@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import {
   readUsageCount,
+  quotaUnavailableResponseBody,
   resolveQuotaBackend,
   utcDateKey,
 } from "@/lib/analysisQuotaServer";
@@ -16,10 +17,12 @@ export const dynamic = "force-dynamic";
 
 export async function GET(): Promise<NextResponse> {
   try {
-    const { backend, rest } = resolveQuotaBackend();
+    const { backend, rest, productionUnavailableReason } = resolveQuotaBackend();
     if (backend === "none") {
       return NextResponse.json(
-        { ok: false, error: "Analysis quota is not configured on the server." },
+        quotaUnavailableResponseBody(
+          productionUnavailableReason ?? "missing_env",
+        ),
         { status: 503 },
       );
     }
