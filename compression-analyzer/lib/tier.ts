@@ -1,8 +1,11 @@
-// Paid-tier flag (client localStorage). Free-tier analysis limits are
-// enforced server-side — see `lib/analysisQuotaServer.ts` and
-// `/api/analysis/*` routes.
+// Pro access: signed-in user + active PayPal subscription in the database.
+// Legacy localStorage helpers remain for tests and one-time cleanup after sign-in.
+// Server enforcement: `lib/proSubscriptionServer.ts` + `/api/analysis/*`.
 
-import { useCallback, useSyncExternalStore } from "react";
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 
 export const PAID_TIER_STORAGE_KEY = "compression-tool:paid-unlocked";
 const PAID_TRUTHY = "1";
@@ -39,63 +42,62 @@ export function clearPaidUnlocked(storage: Storage | null): boolean {
   }
 }
 
-const listeners = new Set<() => void>();
-let cachedRaw: string | null | undefined;
-let cachedPaid = false;
-
-function safePaidRaw(): string | null {
-  try {
-    return window.localStorage.getItem(PAID_TIER_STORAGE_KEY);
-  } catch {
-    return null;
-  }
-}
-
-function subscribe(onChange: () => void): () => void {
-  listeners.add(onChange);
-  const onStorage = (e: StorageEvent) => {
-    if (e.key === PAID_TIER_STORAGE_KEY || e.key === null) onChange();
-  };
-  window.addEventListener("storage", onStorage);
-  return () => {
-    listeners.delete(onChange);
-    window.removeEventListener("storage", onStorage);
-  };
-}
-
-function getSnapshot(): boolean {
-  const raw = safePaidRaw();
-  if (raw !== cachedRaw) {
-    cachedRaw = raw;
-    cachedPaid = raw === PAID_TRUTHY;
-  }
-  return cachedPaid;
-}
-
-function emitLocal(): void {
-  cachedRaw = undefined;
-  for (const cb of listeners) cb();
-}
-
 /**
- * Pro unlock flag only. Free analysis quota comes from
- * `useAnalysisQuota` + `/api/analysis/*`.
+ * Pro status from `/api/subscription` (DB + PayPal lifecycle via webhooks).
+ * `markPaidUnlocked` refreshes session + subscription (call after successful checkout).
  */
 export function useTier(): {
   paidUnlocked: boolean;
   markPaidUnlocked: () => void;
+  sessionStatus: "loading" | "authenticated" | "unauthenticated";
+  userId: string | null;
 } {
-  const paidUnlocked = useSyncExternalStore(
-    subscribe,
-    getSnapshot,
-    () => false,
-  );
+  const { data: session, status: sessionStatus, update } = useSession();
+  const [proFromApi, setProFromApi] = useState(false);
+
+  const refresh = useCallback(async () => {
+    if (sessionStatus !== "authenticated" || !session?.user) {
+      setProFromApi(false);
+      return;
+    }
+    try {
+      const res = await fetch("/api/subscription", { credentials: "include" });
+      const data = (await res.json()) as { ok?: boolean; active?: boolean };
+      setProFromApi(Boolean(res.ok && data.ok && data.active));
+    } catch {
+      setProFromApi(false);
+    }
+  }, [session?.user, sessionStatus]);
+
+  useEffect(() => {
+    queueMicrotask(() => {
+      void refresh();
+    });
+  }, [refresh]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (sessionStatus === "authenticated") {
+      clearPaidUnlocked(window.localStorage);
+    }
+  }, [sessionStatus]);
 
   const markPaidUnlocked = useCallback(() => {
-    if (typeof window === "undefined") return;
-    if (!writePaidUnlocked(window.localStorage)) return;
-    emitLocal();
-  }, []);
+    void update();
+    void refresh();
+  }, [update, refresh]);
 
-  return { paidUnlocked, markPaidUnlocked };
+  const normalizedStatus =
+    sessionStatus === "loading"
+      ? "loading"
+      : sessionStatus === "authenticated"
+        ? "authenticated"
+        : "unauthenticated";
+
+  return {
+    paidUnlocked: proFromApi,
+    markPaidUnlocked,
+    sessionStatus: normalizedStatus,
+    userId: session?.user?.id ?? null,
+  };
 }

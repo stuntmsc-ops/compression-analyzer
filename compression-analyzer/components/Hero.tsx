@@ -63,7 +63,7 @@ export default function Hero() {
   // stands in their place; `markEmailSubmitted` is called from the
   // EmailGate's success callback.
   const [emailSubmitted, markEmailSubmitted] = useEmailGate();
-  const { paidUnlocked, markPaidUnlocked } = useTier();
+  const { paidUnlocked, markPaidUnlocked, sessionStatus, userId } = useTier();
   const { quota, canStartNewAnalysis, recordAfterSuccess } =
     useAnalysisQuota(paidUnlocked);
   const [quotaError, setQuotaError] = useState<string | null>(null);
@@ -326,7 +326,11 @@ export default function Hero() {
               )}
               {quotaError && !paidUnlocked && emailSubmitted && (
                 <div className="mt-6">
-                  <PricingSection onUnlock={markPaidUnlocked} />
+                  <PricingSection
+                    onUnlock={markPaidUnlocked}
+                    sessionStatus={sessionStatus}
+                    sessionUserId={userId}
+                  />
                 </div>
               )}
             </div>
@@ -381,7 +385,11 @@ export default function Hero() {
               )}
 
               {analysis && emailSubmitted && !paidUnlocked && (
-                <PricingSection onUnlock={markPaidUnlocked} />
+                <PricingSection
+                  onUnlock={markPaidUnlocked}
+                  sessionStatus={sessionStatus}
+                  sessionUserId={userId}
+                />
               )}
 
               {/* Technique + plugin tips — Pro only (Day 23). */}

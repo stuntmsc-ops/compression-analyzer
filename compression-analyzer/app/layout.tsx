@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import Providers from "@/components/Providers";
 
 // Vercel automatically sets VERCEL_URL (e.g. my-app-abc123.vercel.app) on deployed
 // builds. On local dev we fall back to localhost:3000. Replace this with your real
@@ -39,7 +40,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className="bg-surface-900 text-white antialiased">{children}</body>
+      <body className="bg-surface-900 text-white antialiased">
+        <Providers>{children}</Providers>
+      </body>
     </html>
   );
 }

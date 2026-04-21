@@ -1,5 +1,5 @@
 import Link from "next/link";
-import Button from "./Button";
+import AuthNav from "./AuthNav";
 
 export default function Header() {
   return (
@@ -26,16 +26,20 @@ export default function Header() {
           </span>
         </Link>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
           <a
             href="#how-it-works"
             className="hidden sm:inline-block text-sm text-gray-400 hover:text-white transition-colors px-3 py-2"
           >
             How it works
           </a>
-          <Button variant="secondary" size="sm">
+          <a
+            href="#pricing"
+            className="inline-flex items-center justify-center text-sm px-3 py-1.5 font-medium rounded-xl bg-surface-700 hover:bg-surface-600 text-white border border-surface-500 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-900 focus-visible:ring-brand-500"
+          >
             Upgrade to Pro
-          </Button>
+          </a>
+          <AuthNav />
         </div>
       </div>
     </header>

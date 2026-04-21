@@ -1,10 +1,13 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/lib/authOptions";
 import {
   quotaUnavailableResponseBody,
   resolveQuotaBackend,
   tryIncrementUsage,
 } from "@/lib/analysisQuotaServer";
+import { userHasActiveProSubscription } from "@/lib/proSubscriptionServer";
 import {
   FREE_DAILY_ANALYSIS_LIMIT,
   QUOTA_SESSION_COOKIE,
@@ -28,6 +31,22 @@ export async function POST(): Promise<NextResponse> {
         ),
         { status: 503 },
       );
+    }
+
+    const session = await getServerSession(authOptions);
+    if (
+      session?.user?.id &&
+      (await userHasActiveProSubscription(session.user.id))
+    ) {
+      return NextResponse.json({
+        ok: true,
+        used: 0,
+        remaining: FREE_DAILY_ANALYSIS_LIMIT,
+        limit: FREE_DAILY_ANALYSIS_LIMIT,
+        canStart: true,
+        accepted: false,
+        pro: true,
+      });
     }
 
     const store = await cookies();
