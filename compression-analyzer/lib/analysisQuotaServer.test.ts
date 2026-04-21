@@ -10,6 +10,7 @@ import {
   looksLikeUpstashVectorOrSearchRestUrl,
   quotaUnavailableResponseBody,
   resolveQuotaBackend,
+  getQuotaEnvDiagnosticHint,
 } from "./analysisQuotaServer";
 import { FREE_DAILY_ANALYSIS_LIMIT } from "./quotaConstants";
 
@@ -109,6 +110,37 @@ describe("quotaUnavailableResponseBody", () => {
     expect(b.ok).toBe(false);
     expect(b.skipReason).toBe("vector_or_search_host");
     expect(b.error).toContain("Search or Vector");
+  });
+});
+
+const DIAG_ENV_KEYS = [
+  ...QUOTA_ENV_KEYS,
+  "UPSTASH_SEARCH_REST_URL",
+  "UPSTASH_SEARCH_REST_TOKEN",
+] as const;
+
+describe("getQuotaEnvDiagnosticHint", () => {
+  let saved: Partial<Record<(typeof DIAG_ENV_KEYS)[number], string | undefined>>;
+
+  beforeEach(() => {
+    saved = {};
+    for (const k of DIAG_ENV_KEYS) {
+      saved[k] = process.env[k];
+      delete process.env[k];
+    }
+  });
+
+  afterEach(() => {
+    for (const k of DIAG_ENV_KEYS) {
+      if (saved[k] === undefined) delete process.env[k];
+      else process.env[k] = saved[k];
+    }
+  });
+
+  it("flags Search env without Redis", () => {
+    process.env.UPSTASH_SEARCH_REST_URL = "https://example-search.upstash.io";
+    process.env.UPSTASH_SEARCH_REST_TOKEN = "tok";
+    expect(getQuotaEnvDiagnosticHint()).toContain("Search or Vector");
   });
 });
 

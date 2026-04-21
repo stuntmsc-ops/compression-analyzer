@@ -138,10 +138,50 @@ export type QuotaEnvSkipReason =
   | "vector_or_search_host"
   | "invalid_host";
 
+type QuotaCredsResolved =
+  | { ok: true; creds: QuotaRestCredentials }
+  | { ok: false; reason: QuotaEnvSkipReason };
+
+function strippedHasChars(value: string | undefined): boolean {
+  if (value === undefined) return false;
+  return stripEnvLine(value).replace(/\s/g, "").length > 0;
+}
+
+/**
+ * Extra context for operators (no secret values). Helps when Vercel only
+ * injected Search/Vector env names, or Production scope is wrong.
+ */
+export function getQuotaEnvDiagnosticHint(): string {
+  const RU = strippedHasChars(process.env.UPSTASH_REDIS_REST_URL);
+  const RT = strippedHasChars(process.env.UPSTASH_REDIS_REST_TOKEN);
+  const KU = strippedHasChars(process.env.KV_REST_API_URL);
+  const KT = strippedHasChars(process.env.KV_REST_API_TOKEN);
+  const searchPair =
+    strippedHasChars(process.env.UPSTASH_SEARCH_REST_URL) &&
+    strippedHasChars(process.env.UPSTASH_SEARCH_REST_TOKEN);
+  const vectorPair =
+    strippedHasChars(process.env.UPSTASH_VECTOR_REST_URL) &&
+    strippedHasChars(process.env.UPSTASH_VECTOR_REST_TOKEN);
+
+  if (searchPair || vectorPair) {
+    return " Vercel has Upstash Search or Vector variables (UPSTASH_SEARCH_* / UPSTASH_VECTOR_*), but quota needs Redis: set UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN from Upstash → Redis → REST API, or add a Redis resource in the Vercel Upstash integration.";
+  }
+  if (RU !== RT) {
+    return " UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN must both be non-empty; one is missing or blank.";
+  }
+  if (KU !== KT) {
+    return " KV_REST_API_URL and KV_REST_API_TOKEN must both be non-empty; one is missing or blank.";
+  }
+  if (!RU && !RT && !KU && !KT) {
+    return " No Redis or KV REST variables are visible to this deployment. In Vercel: Project → Settings → Environment Variables → confirm UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN (or KV_REST_*) are enabled for Production, then redeploy (Clear cache if needed).";
+  }
+  return "";
+}
+
 export function quotaUnavailableResponseBody(
   reason: QuotaEnvSkipReason,
 ): { ok: false; error: string; skipReason: QuotaEnvSkipReason } {
-  const error: Record<QuotaEnvSkipReason, string> = {
+  const messages: Record<QuotaEnvSkipReason, string> = {
     missing_env:
       "Analysis quota is not configured: set UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN (or KV_REST_API_URL and KV_REST_API_TOKEN) for the Production environment on Vercel, then redeploy. If both name prefixes exist, delete any empty UPSTASH_* entries so the KV_* pair can be used.",
     empty_after_strip:
@@ -151,16 +191,11 @@ export function quotaUnavailableResponseBody(
     invalid_host:
       "Analysis quota REST URL must be a public HTTPS Upstash Redis host (not localhost). Update Vercel Production env and redeploy.",
   };
-  return { ok: false, error: error[reason], skipReason: reason };
-}
-
-type QuotaCredsResolved =
-  | { ok: true; creds: QuotaRestCredentials }
-  | { ok: false; reason: QuotaEnvSkipReason };
-
-function strippedHasChars(value: string | undefined): boolean {
-  if (value === undefined) return false;
-  return stripEnvLine(value).replace(/\s/g, "").length > 0;
+  let error = messages[reason];
+  if (reason === "missing_env" || reason === "empty_after_strip") {
+    error += getQuotaEnvDiagnosticHint();
+  }
+  return { ok: false, error, skipReason: reason };
 }
 
 /**
