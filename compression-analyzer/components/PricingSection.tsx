@@ -7,6 +7,8 @@ import {
   PAYPAL_PRO_MONTHLY_AMOUNT_LABEL,
 } from "@/lib/paypalConstants";
 import { CONTACT_URL } from "@/lib/siteLinks";
+import { MSG_PAYMENT_FAILED } from "@/lib/userFacingMessages";
+import ReportProblemLink from "@/components/ReportProblemLink";
 
 type Props = {
   onUnlock: () => void;
@@ -152,14 +154,14 @@ export default function PricingSection({
           onUnlock();
           setMessage("Subscription active. Pro features are unlocked.");
           setPayState("ready");
-        } catch (e) {
+        } catch {
           setPayState("ready");
-          setMessage(e instanceof Error ? e.message : "Verification failed.");
+          setMessage(MSG_PAYMENT_FAILED);
         }
       },
       onError: (err) => {
         console.error("[PayPal]", err);
-        setMessage("PayPal reported an error. Try again or use another funding source.");
+        setMessage(MSG_PAYMENT_FAILED);
       },
       onCancel: () => {
         setMessage("Checkout cancelled.");
@@ -276,16 +278,19 @@ export default function PricingSection({
         )}
 
         {message && (
-          <p
-            className={`text-sm mt-3 leading-relaxed ${
+          <div
+            className={`text-sm mt-3 leading-relaxed space-y-2 ${
               message.includes("active") || message.includes("unlocked")
                 ? "text-emerald-400/90"
                 : "text-amber-200/90"
             }`}
             role="status"
           >
-            {message}
-          </p>
+            <p>{message}</p>
+            {!(message.includes("active") || message.includes("unlocked")) && (
+              <ReportProblemLink className="text-amber-200/80" />
+            )}
+          </div>
         )}
 
         <p className="text-gray-600 text-xs mt-4 leading-relaxed">

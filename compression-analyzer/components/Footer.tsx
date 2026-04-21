@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { BLOG_URL, CONTACT_URL } from "@/lib/siteLinks";
+import ReportProblemLink from "@/components/ReportProblemLink";
 
 export default function Footer() {
   return (
@@ -38,6 +39,7 @@ export default function Footer() {
             >
               Blog
             </a>
+            <ReportProblemLink className="text-gray-600 hover:text-gray-300 text-sm" />
           </div>
         </div>
       </div>

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState, startTransition } from "react";
 import { FREE_DAILY_ANALYSIS_LIMIT } from "./quotaConstants";
+import { MSG_QUOTA_UNAVAILABLE } from "./userFacingMessages";
 
 type QuotaReady = {
   status: "ready";
@@ -88,10 +89,10 @@ export function useAnalysisQuota(paidUnlocked: boolean): {
         remaining: typeof data.remaining === "number" ? data.remaining : 0,
         canStart: Boolean(data.canStart),
       });
-    } catch (err) {
+    } catch {
       setQuota({
         status: "error",
-        message: err instanceof Error ? err.message : "Quota request failed.",
+        message: MSG_QUOTA_UNAVAILABLE,
       });
     }
   }, [paidUnlocked]);

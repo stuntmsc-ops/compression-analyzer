@@ -1,3 +1,8 @@
+import {
+  MSG_BROWSER_NO_WEB_AUDIO,
+  MSG_UPLOAD_FAILED,
+} from "@/lib/userFacingMessages";
+
 let cachedContext: AudioContext | null = null;
 
 /**
@@ -25,15 +30,23 @@ export function getAudioContext(): AudioContext {
   if (!cachedContext) {
     const Ctor =
       window.AudioContext ||
-      (window as unknown as { webkitAudioContext: typeof AudioContext })
+      (window as unknown as { webkitAudioContext?: typeof AudioContext })
         .webkitAudioContext;
+
+    if (typeof Ctor !== "function") {
+      throw new Error(MSG_BROWSER_NO_WEB_AUDIO);
+    }
 
     // Some browsers refuse a requested rate that's far from the system rate.
     // Fall back to the default context if construction fails.
     try {
       cachedContext = new Ctor({ sampleRate: ANALYSIS_SAMPLE_RATE });
     } catch {
-      cachedContext = new Ctor();
+      try {
+        cachedContext = new Ctor();
+      } catch {
+        throw new Error(MSG_BROWSER_NO_WEB_AUDIO);
+      }
     }
   }
 
@@ -56,15 +69,21 @@ export async function unlockAudioContext(): Promise<void> {
  * Throws a user-friendly error if the file is corrupt or unsupported.
  */
 export async function decodeAudioFile(file: File): Promise<AudioBuffer> {
+  let arrayBuffer: ArrayBuffer;
+  try {
+    arrayBuffer = await file.arrayBuffer();
+  } catch {
+    throw new Error(MSG_UPLOAD_FAILED);
+  }
+
+  await unlockAudioContext().catch(() => {});
+
   const ctx = getAudioContext();
-  const arrayBuffer = await file.arrayBuffer();
 
   try {
     return await ctx.decodeAudioData(arrayBuffer);
   } catch {
-    throw new Error(
-      "We couldn't decode this audio file. It may be corrupted or in an unsupported format. Try a standard WAV or MP3."
-    );
+    throw new Error(MSG_UPLOAD_FAILED);
   }
 }
 

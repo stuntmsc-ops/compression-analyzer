@@ -18,6 +18,8 @@ declare namespace NodeJS {
     /** `live` or `sandbox` — must match credential type (defaults to sandbox if unset) */
     PAYPAL_MODE?: string;
     NEXT_PUBLIC_PAYPAL_CLIENT_ID?: string;
+    /** Shown in "Report a Problem" mailto when set; otherwise contact page URL is used. */
+    NEXT_PUBLIC_SUPPORT_EMAIL?: string;
     /** Monthly billing plan id from PayPal (Subscriptions), e.g. P-xxxxxxxx */
     PAYPAL_PLAN_ID?: string;
   }

@@ -1,6 +1,11 @@
 "use client";
 
 import { useRef, useState, DragEvent, ChangeEvent } from "react";
+import ReportProblemLink from "@/components/ReportProblemLink";
+import {
+  MSG_UPLOAD_FAILED,
+  MSG_UPLOAD_ONE_FILE,
+} from "@/lib/userFacingMessages";
 
 const ACCEPTED_TYPES = ["audio/wav", "audio/mpeg", "audio/mp3", "audio/flac", "audio/ogg", "audio/x-wav", "audio/x-flac"];
 const ACCEPTED_EXTENSIONS = [".wav", ".mp3", ".flac", ".ogg"];
@@ -25,7 +30,7 @@ export default function AudioUploader({ onFileSelected }: AudioUploaderProps) {
   const validateFile = (file: File): string | null => {
     const sizeMB = file.size / 1024 / 1024;
     if (sizeMB > MAX_FILE_SIZE_MB) {
-      return `File is ${sizeMB.toFixed(1)} MB. Max size is ${MAX_FILE_SIZE_MB} MB.`;
+      return MSG_UPLOAD_FAILED;
     }
 
     const hasValidType =
@@ -33,7 +38,7 @@ export default function AudioUploader({ onFileSelected }: AudioUploaderProps) {
       ACCEPTED_EXTENSIONS.some((ext) => file.name.toLowerCase().endsWith(ext));
 
     if (!hasValidType) {
-      return "Unsupported format. Use WAV, MP3, FLAC, or OGG.";
+      return MSG_UPLOAD_FAILED;
     }
 
     return null;
@@ -83,9 +88,7 @@ export default function AudioUploader({ onFileSelected }: AudioUploaderProps) {
     const files = e.dataTransfer.files;
     if (files.length === 0) return;
     if (files.length > 1) {
-      setError(
-        `Drop one file at a time. You added ${files.length} files. Pick the single audio file you want to analyse.`,
-      );
+      setError(MSG_UPLOAD_ONE_FILE);
       return;
     }
     handleFile(files[0]);
@@ -144,8 +147,11 @@ export default function AudioUploader({ onFileSelected }: AudioUploaderProps) {
       </div>
 
       {error && (
-        <div className="mt-3 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
-          {error}
+        <div className="mt-3 px-3 py-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm space-y-2">
+          <p className="leading-relaxed">{error}</p>
+          <div className="flex justify-end">
+            <ReportProblemLink className="text-xs text-red-300/90" />
+          </div>
         </div>
       )}
     </div>

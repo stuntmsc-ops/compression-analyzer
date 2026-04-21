@@ -18,12 +18,18 @@ import AnalyzingIndicator from "./AnalyzingIndicator";
 import SelectorPanel from "./SelectorPanel";
 import EmailGate from "./EmailGate";
 import PricingSection from "./PricingSection";
+import BrowserAudioGuard from "./BrowserAudioGuard";
+import ReportProblemLink from "./ReportProblemLink";
 import { decodeAudioFile } from "@/lib/audioContext";
 import { analyzeAudioBuffer, type AudioAnalysisResult } from "@/lib/audioAnalysis";
 import { useUrlSelectors } from "@/lib/urlState";
 import { useEmailGate } from "@/lib/emailGate";
 import { useTier } from "@/lib/tier";
 import { useAnalysisQuota } from "@/lib/useAnalysisQuota";
+import {
+  MSG_ANALYSIS_FAILED,
+  MSG_UPLOAD_FAILED,
+} from "@/lib/userFacingMessages";
 
 type CopyLinkStatus = "idle" | "copied" | "failed";
 const COPY_LINK_FLASH_MS = 2000;
@@ -109,7 +115,7 @@ export default function Hero() {
     copyLinkStatus === "copied"
       ? "Link copied"
       : copyLinkStatus === "failed"
-        ? "Copy failed"
+        ? "Could not copy (try the address bar)"
         : "Copy share link";
 
   useEffect(() => {
@@ -134,15 +140,22 @@ export default function Hero() {
         await new Promise<void>((resolve) => setTimeout(resolve, 16));
         if (controller.signal.aborted) return;
 
-        const analyzeStart = performance.now();
-        const result = analyzeAudioBuffer(buffer);
-        const analyzeMs = performance.now() - analyzeStart;
-
-        // Instrumentation — keeps Day 13's <3s goal measurable. Always
-        // logs so manual testing with different clip lengths is trivial.
-        console.log(
-          `[analysis] decode ${decodeMs.toFixed(0)}ms · analyze ${analyzeMs.toFixed(0)}ms · ${buffer.duration.toFixed(1)}s @ ${buffer.sampleRate}Hz`,
-        );
+        let result: AudioAnalysisResult;
+        try {
+          const analyzeStart = performance.now();
+          result = analyzeAudioBuffer(buffer);
+          const analyzeMs = performance.now() - analyzeStart;
+          console.log(
+            `[analysis] decode ${decodeMs.toFixed(0)}ms · analyze ${analyzeMs.toFixed(0)}ms · ${buffer.duration.toFixed(1)}s @ ${buffer.sampleRate}Hz`,
+          );
+        } catch (analyzeErr) {
+          console.error("[analysis] analyzeAudioBuffer failed", analyzeErr);
+          if (controller.signal.aborted) return;
+          setDecodingError(MSG_ANALYSIS_FAILED);
+          setAudioBuffer(null);
+          setLoadingPhase(null);
+          return;
+        }
 
         if (controller.signal.aborted) return;
         setAnalysis(result);
@@ -153,7 +166,9 @@ export default function Hero() {
       })
       .catch((err) => {
         if (controller.signal.aborted) return;
-        setDecodingError(err instanceof Error ? err.message : "Decoding failed");
+        const msg =
+          err instanceof Error && err.message ? err.message : MSG_UPLOAD_FAILED;
+        setDecodingError(msg);
         setLoadingPhase(null);
       });
 
@@ -213,13 +228,19 @@ export default function Hero() {
 
     // Same yield pattern as the effect so the indicator paints first.
     setTimeout(() => {
-      const analyzeStart = performance.now();
-      const result = analyzeAudioBuffer(audioBuffer);
-      console.log(
-        `[analysis] re-analyze ${(performance.now() - analyzeStart).toFixed(0)}ms`,
-      );
-      setAnalysis(result);
-      setLoadingPhase(null);
+      try {
+        const analyzeStart = performance.now();
+        const result = analyzeAudioBuffer(audioBuffer);
+        console.log(
+          `[analysis] re-analyze ${(performance.now() - analyzeStart).toFixed(0)}ms`,
+        );
+        setAnalysis(result);
+        setLoadingPhase(null);
+      } catch (e) {
+        console.error("[analysis] re-analyze failed", e);
+        setDecodingError(MSG_ANALYSIS_FAILED);
+        setLoadingPhase(null);
+      }
     }, 16);
   }, [audioBuffer]);
 
@@ -232,6 +253,7 @@ export default function Hero() {
       <div className="absolute inset-0 bg-gradient-to-b from-brand-500/5 via-transparent to-transparent pointer-events-none" />
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[600px] max-w-[90vw] bg-brand-500/10 rounded-full blur-3xl pointer-events-none" />
 
+      <BrowserAudioGuard>
       <div className="relative max-w-4xl mx-auto px-4 sm:px-6 pt-12 sm:pt-14 pb-12 sm:pb-16 text-center">
         <p className="text-gray-500 text-xs font-semibold uppercase tracking-widest mb-2">
           The analyzer
@@ -260,12 +282,13 @@ export default function Hero() {
         />
 
         {!paidUnlocked && quota.status === "error" && (
-          <p
-            className="text-amber-200/90 text-xs mb-4 max-w-2xl mx-auto px-1 leading-relaxed"
+          <div
+            className="text-amber-200/90 text-xs mb-4 max-w-2xl mx-auto px-1 leading-relaxed space-y-2"
             role="alert"
           >
-            {quota.message}
-          </p>
+            <p>{quota.message}</p>
+            <ReportProblemLink className="text-xs text-amber-300/90" />
+          </div>
         )}
 
         {/* Share-link — Pro only (URL encodes full selector state). */}
@@ -325,17 +348,22 @@ export default function Hero() {
               )}
 
               {decodingError && (
-                <div className="px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 flex items-start gap-3">
-                  <p className="text-red-400 text-sm leading-relaxed flex-1 min-w-0">
-                    {decodingError}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={handleRetryDecode}
-                    className="shrink-0 text-red-300 hover:text-white border border-red-500/30 hover:border-red-400 hover:bg-red-500/20 rounded-md px-2 py-1 text-xs font-medium transition-colors"
-                  >
-                    Try again
-                  </button>
+                <div className="px-3 py-3 rounded-lg bg-red-500/10 border border-red-500/20 space-y-2">
+                  <div className="flex items-start gap-3">
+                    <p className="text-red-400 text-sm leading-relaxed flex-1 min-w-0">
+                      {decodingError}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={handleRetryDecode}
+                      className="shrink-0 text-red-300 hover:text-white border border-red-500/30 hover:border-red-400 hover:bg-red-500/20 rounded-md px-2 py-1 text-xs font-medium transition-colors"
+                    >
+                      Try again
+                    </button>
+                  </div>
+                  <div className="flex justify-end sm:justify-center pt-0.5">
+                    <ReportProblemLink className="text-xs text-red-300/90" />
+                  </div>
                 </div>
               )}
 
@@ -407,6 +435,7 @@ export default function Hero() {
           )}
         </div>
       </div>
+      </BrowserAudioGuard>
     </section>
   );
 }

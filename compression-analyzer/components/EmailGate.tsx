@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import Button from "./Button";
+import ReportProblemLink from "@/components/ReportProblemLink";
 import { validateEmail } from "@/lib/emailValidation";
 
 type Props = {
@@ -165,13 +166,10 @@ export default function EmailGate({ onSubmitted }: Props) {
           </label>
 
           {message && (
-            <p
-              id="email-gate-error"
-              role="alert"
-              className="text-amber-300 text-xs leading-relaxed"
-            >
-              {message}
-            </p>
+            <div id="email-gate-error" role="alert" className="space-y-2">
+              <p className="text-amber-300 text-xs leading-relaxed">{message}</p>
+              <ReportProblemLink className="text-amber-200/80 text-xs" />
+            </div>
           )}
 
           <div className="flex items-center justify-between gap-3">
