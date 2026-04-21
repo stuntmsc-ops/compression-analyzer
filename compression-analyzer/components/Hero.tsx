@@ -1,19 +1,29 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import {
+  useState,
+  useEffect,
+  useLayoutEffect,
+  useCallback,
+  useRef,
+} from "react";
 import Button from "./Button";
 import AudioUploader from "./AudioUploader";
 import AudioPlayer from "./AudioPlayer";
 import AudioProfile from "./AudioProfile";
 import RecommendationCard from "./RecommendationCard";
 import TechniqueCard from "./TechniqueCard";
+import PluginTipsCard from "./PluginTipsCard";
 import AnalyzingIndicator from "./AnalyzingIndicator";
 import SelectorPanel from "./SelectorPanel";
 import EmailGate from "./EmailGate";
+import PricingSection from "./PricingSection";
 import { decodeAudioFile } from "@/lib/audioContext";
 import { analyzeAudioBuffer, type AudioAnalysisResult } from "@/lib/audioAnalysis";
 import { useUrlSelectors } from "@/lib/urlState";
 import { useEmailGate } from "@/lib/emailGate";
+import { useTier } from "@/lib/tier";
+import { useAnalysisQuota } from "@/lib/useAnalysisQuota";
 
 type CopyLinkStatus = "idle" | "copied" | "failed";
 const COPY_LINK_FLASH_MS = 2000;
@@ -53,6 +63,21 @@ export default function Hero() {
   // stands in their place; `markEmailSubmitted` is called from the
   // EmailGate's success callback.
   const [emailSubmitted, markEmailSubmitted] = useEmailGate();
+  const { paidUnlocked, markPaidUnlocked } = useTier();
+  const { quota, canStartNewAnalysis, recordAfterSuccess } =
+    useAnalysisQuota(paidUnlocked);
+  const [quotaError, setQuotaError] = useState<string | null>(null);
+
+  // Free tier only supports vocal — deep links with another instrument
+  // are clamped before paint to avoid a one-frame invalid <select> value.
+  useLayoutEffect(() => {
+    if (paidUnlocked) return;
+    if (selectors.instrument === "vocal") return;
+    setSelectors({
+      ...selectors,
+      instrument: "vocal",
+    });
+  }, [paidUnlocked, selectors, setSelectors]);
 
   // ─── Copy-link button ────────────────────────────────────────────
   //
@@ -122,6 +147,9 @@ export default function Hero() {
         if (controller.signal.aborted) return;
         setAnalysis(result);
         setLoadingPhase(null);
+        if (!paidUnlocked) {
+          await recordAfterSuccess();
+        }
       })
       .catch((err) => {
         if (controller.signal.aborted) return;
@@ -132,7 +160,7 @@ export default function Hero() {
     return () => {
       controller.abort();
     };
-  }, [file, decodeAttempt]);
+  }, [file, decodeAttempt, paidUnlocked, recordAfterSuccess]);
 
   const handleRetryDecode = () => {
     // Clear state that belongs to the failed attempt, then bump the
@@ -148,6 +176,13 @@ export default function Hero() {
   };
 
   const handleFileSelected = (newFile: File) => {
+    setQuotaError(null);
+    if (!paidUnlocked && !canStartNewAnalysis) {
+      setQuotaError(
+        "You've used all 3 free vocal analyses today. Upgrade to Pro for unlimited analyses, or try again tomorrow.",
+      );
+      return;
+    }
     // All synchronous state transitions for "new file" happen here
     // so the effect stays clean (see react-hooks/set-state-in-effect).
     setAudioBuffer(null);
@@ -163,6 +198,7 @@ export default function Hero() {
     setAnalysis(null);
     setDecodingError(null);
     setLoadingPhase(null);
+    setQuotaError(null);
   };
 
   // Re-runs analysis against the already-decoded buffer. Skips the
@@ -229,33 +265,48 @@ export default function Hero() {
             </svg>
           </Button>
           <p className="text-gray-600 text-xs sm:text-sm">
-            No signup to try · Free for vocals
+            {paidUnlocked
+              ? "Pro — all instruments · unlimited analyses"
+              : "Free tier — vocals only · 3 analyses per day"}
           </p>
         </div>
 
         {/* Analysis setup selectors */}
-        <SelectorPanel value={selectors} onChange={setSelectors} />
+        <SelectorPanel
+          value={selectors}
+          onChange={setSelectors}
+          paidUnlocked={paidUnlocked}
+        />
 
-        {/* Share-link action — copies the current URL with selector state
-            encoded in the hash. Lives outside SelectorPanel so that
-            component's API stays focused on value/onChange. */}
-        <div className="max-w-2xl mx-auto mb-6 flex justify-end px-1">
-          <button
-            type="button"
-            onClick={handleCopyLink}
-            aria-label="Copy a shareable link to this setup"
-            aria-live="polite"
-            className={`text-[11px] font-medium px-2 py-1 rounded-md border transition-colors ${
-              copyLinkStatus === "copied"
-                ? "text-brand-300 border-brand-500/40 bg-brand-500/10"
-                : copyLinkStatus === "failed"
-                  ? "text-amber-300 border-amber-500/40 bg-amber-500/10"
-                  : "text-gray-500 border-surface-700 hover:text-white hover:border-surface-500 hover:bg-surface-800"
-            }`}
+        {!paidUnlocked && quota.status === "error" && (
+          <p
+            className="text-amber-200/90 text-xs mb-4 max-w-2xl mx-auto px-1 leading-relaxed"
+            role="alert"
           >
-            {copyLinkLabel}
-          </button>
-        </div>
+            {quota.message}
+          </p>
+        )}
+
+        {/* Share-link — Pro only (URL encodes full selector state). */}
+        {paidUnlocked && (
+          <div className="max-w-2xl mx-auto mb-6 flex justify-end px-1">
+            <button
+              type="button"
+              onClick={handleCopyLink}
+              aria-label="Copy a shareable link to this setup"
+              aria-live="polite"
+              className={`text-[11px] font-medium px-2 py-1 rounded-md border transition-colors ${
+                copyLinkStatus === "copied"
+                  ? "text-brand-300 border-brand-500/40 bg-brand-500/10"
+                  : copyLinkStatus === "failed"
+                    ? "text-amber-300 border-amber-500/40 bg-amber-500/10"
+                    : "text-gray-500 border-surface-700 hover:text-white hover:border-surface-500 hover:bg-surface-800"
+              }`}
+            >
+              {copyLinkLabel}
+            </button>
+          </div>
+        )}
 
         {/* Upload zone */}
         <div
@@ -263,7 +314,22 @@ export default function Hero() {
           className="bg-surface-800 border border-surface-700 rounded-2xl p-4 sm:p-6 max-w-2xl mx-auto shadow-2xl text-left"
         >
           {!file ? (
-            <AudioUploader onFileSelected={handleFileSelected} />
+            <div>
+              <AudioUploader onFileSelected={handleFileSelected} />
+              {quotaError && (
+                <div
+                  className="mt-3 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/25 text-amber-200 text-sm leading-relaxed"
+                  role="alert"
+                >
+                  {quotaError}
+                </div>
+              )}
+              {quotaError && !paidUnlocked && emailSubmitted && (
+                <div className="mt-6">
+                  <PricingSection onUnlock={markPaidUnlocked} />
+                </div>
+              )}
+            </div>
           ) : (
             <div className="space-y-4">
               {loadingPhase === "decoding" && (
@@ -310,19 +376,23 @@ export default function Hero() {
                   instrument={selectors.instrument}
                   genre={selectors.genre}
                   goal={selectors.goal}
+                  paidTier={paidUnlocked}
                 />
               )}
 
-              {/* Technique recommendation — compression *approach*
-                  (serial / parallel / bus / standard) derived from the
-                  analysis + instrument. Rendered below the settings
-                  card so the user sees the knob positions first, then
-                  the how-to-apply-them guidance. */}
-              {analysis && emailSubmitted && (
+              {analysis && emailSubmitted && !paidUnlocked && (
+                <PricingSection onUnlock={markPaidUnlocked} />
+              )}
+
+              {/* Technique + plugin tips — Pro only (Day 23). */}
+              {analysis && emailSubmitted && paidUnlocked && (
                 <TechniqueCard
                   analysis={analysis}
                   instrument={selectors.instrument}
                 />
+              )}
+              {analysis && emailSubmitted && paidUnlocked && (
+                <PluginTipsCard />
               )}
 
               <div className="flex items-center justify-between px-1">

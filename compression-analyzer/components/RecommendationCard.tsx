@@ -20,6 +20,8 @@ type Props = {
   instrument: InstrumentType;
   genre: Genre;
   goal: CompressionGoal;
+  /** Pro: full rationale, deltas, and copy. Free: core tiles + short summary. */
+  paidTier: boolean;
 };
 
 /**
@@ -167,6 +169,7 @@ export default function RecommendationCard({
   instrument,
   genre,
   goal,
+  paidTier,
 }: Props) {
   const rec = useMemo(
     () => recommendCompression(analysis, instrument, genre, goal),
@@ -206,7 +209,7 @@ export default function RecommendationCard({
   // over, so the next selector toggle (not the file swap itself) is
   // the first annotated render.
   const deltas =
-    prevSettings && prevAnalysis === analysis
+    paidTier && prevSettings && prevAnalysis === analysis
       ? computeDeltas(settings, prevSettings)
       : null;
 
@@ -249,21 +252,30 @@ export default function RecommendationCard({
           <p className="text-gray-400 text-sm font-semibold">
             Recommended Settings
           </p>
-          <button
-            type="button"
-            onClick={handleCopy}
-            aria-label="Copy settings to clipboard"
-            aria-live="polite"
-            className={`text-[11px] font-medium px-2 py-1 rounded-md border transition-colors tabular-nums ${
-              copyStatus === "copied"
-                ? "text-brand-300 border-brand-500/40 bg-brand-500/10"
-                : copyStatus === "failed"
-                  ? "text-amber-300 border-amber-500/40 bg-amber-500/10"
-                  : "text-gray-400 border-surface-700 hover:text-white hover:border-surface-500 hover:bg-surface-800"
-            }`}
-          >
-            {copyLabel}
-          </button>
+          {paidTier ? (
+            <button
+              type="button"
+              onClick={handleCopy}
+              aria-label="Copy settings to clipboard"
+              aria-live="polite"
+              className={`text-[11px] font-medium px-2 py-1 rounded-md border transition-colors tabular-nums ${
+                copyStatus === "copied"
+                  ? "text-brand-300 border-brand-500/40 bg-brand-500/10"
+                  : copyStatus === "failed"
+                    ? "text-amber-300 border-amber-500/40 bg-amber-500/10"
+                    : "text-gray-400 border-surface-700 hover:text-white hover:border-surface-500 hover:bg-surface-800"
+              }`}
+            >
+              {copyLabel}
+            </button>
+          ) : (
+            <a
+              href="#pricing"
+              className="text-[11px] font-medium px-2 py-1 rounded-md border border-surface-700 text-gray-500 hover:text-brand-300 hover:border-brand-500/40 transition-colors"
+            >
+              Copy (Pro)
+            </a>
+          )}
         </div>
         <span className="text-gray-600 text-xs text-right">
           {labelForInstrument(instrument)} · {labelForGenre(genre)} ·{" "}
@@ -343,29 +355,33 @@ export default function RecommendationCard({
         </div>
       )}
 
-      {/* Why these settings — templated prose keyed off the actual
-          measurements, not generic notes. The trailing gray line exposes
-          the raw numeric adjustments (peak GR target, crest deviation)
-          so engineers who want to sanity-check the math can see it. */}
-      <details className="group pt-3 border-t border-surface-800">
-        <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden text-gray-500 text-xs font-medium hover:text-gray-400 transition-colors flex items-center gap-1.5">
-          <span className="inline-block transition-transform group-open:rotate-90">
-            ›
-          </span>
-          Why these settings
-        </summary>
-        <div className="mt-3 space-y-2.5 text-xs text-gray-400 leading-relaxed">
-          <p>{rec.explanation.summary}</p>
-          <p>{rec.explanation.settingsRationale}</p>
-          <p className="text-gray-600">
-            Targeting ~{adjustments.targetPeakGrDb} dB gain reduction at peak.
-            Ratio nudged by crest factor{" "}
-            {crestSign}
-            {adjustments.crestDeviationDb.toFixed(1)} dB from the instrument&apos;s
-            typical range.
+      {!paidTier ? (
+        <div className="pt-3 border-t border-surface-800">
+          <p className="text-xs text-gray-400 leading-relaxed">
+            {rec.explanation.summary}
           </p>
         </div>
-      </details>
+      ) : (
+        <details className="group pt-3 border-t border-surface-800">
+          <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden text-gray-500 text-xs font-medium hover:text-gray-400 transition-colors flex items-center gap-1.5">
+            <span className="inline-block transition-transform group-open:rotate-90">
+              ›
+            </span>
+            Why these settings
+          </summary>
+          <div className="mt-3 space-y-2.5 text-xs text-gray-400 leading-relaxed">
+            <p>{rec.explanation.summary}</p>
+            <p>{rec.explanation.settingsRationale}</p>
+            <p className="text-gray-600">
+              Targeting ~{adjustments.targetPeakGrDb} dB gain reduction at peak.
+              Ratio nudged by crest factor{" "}
+              {crestSign}
+              {adjustments.crestDeviationDb.toFixed(1)} dB from the
+              instrument&apos;s typical range.
+            </p>
+          </div>
+        </details>
+      )}
     </div>
   );
 }

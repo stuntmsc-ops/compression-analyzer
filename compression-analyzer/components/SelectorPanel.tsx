@@ -11,10 +11,24 @@ import {
 type SelectorPanelProps = {
   value: SelectorState;
   onChange: (value: SelectorState) => void;
+  /** When false, only Vocal is selectable; other instruments show disabled (Pro). */
+  paidUnlocked: boolean;
 };
 
-export default function SelectorPanel({ value, onChange }: SelectorPanelProps) {
+export default function SelectorPanel({
+  value,
+  onChange,
+  paidUnlocked,
+}: SelectorPanelProps) {
   const activeGoal = GOAL_OPTIONS.find((g) => g.value === value.goal);
+
+  const instrumentOptions = paidUnlocked
+    ? INSTRUMENT_OPTIONS
+    : INSTRUMENT_OPTIONS.map((o) => ({
+        ...o,
+        disabled: o.value !== "vocal",
+        label: o.value === "vocal" ? o.label : `${o.label} (Pro)`,
+      }));
 
   return (
     <div className="max-w-2xl mx-auto mb-4">
@@ -22,7 +36,7 @@ export default function SelectorPanel({ value, onChange }: SelectorPanelProps) {
         <Select
           label="Instrument"
           value={value.instrument}
-          options={INSTRUMENT_OPTIONS}
+          options={instrumentOptions}
           onChange={(instrument) => onChange({ ...value, instrument })}
         />
         <Select

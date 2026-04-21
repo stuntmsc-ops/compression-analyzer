@@ -1,0 +1,55 @@
+import { cookies } from "next/headers";
+import { NextResponse } from "next/server";
+import {
+  resolveQuotaBackend,
+  tryIncrementUsage,
+} from "@/lib/analysisQuotaServer";
+import {
+  FREE_DAILY_ANALYSIS_LIMIT,
+  QUOTA_SESSION_COOKIE,
+  QUOTA_SESSION_ID_REGEX,
+} from "@/lib/quotaConstants";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+/**
+ * Records one completed free-tier analysis (after decode + analyze succeed).
+ * Atomic: cannot push past FREE_DAILY_ANALYSIS_LIMIT even with parallel tabs.
+ */
+export async function POST(): Promise<NextResponse> {
+  try {
+    const { backend, rest } = resolveQuotaBackend();
+    if (backend === "none") {
+      return NextResponse.json(
+        { ok: false, error: "Analysis quota is not configured on the server." },
+        { status: 503 },
+      );
+    }
+
+    const store = await cookies();
+    const sid = store.get(QUOTA_SESSION_COOKIE)?.value ?? null;
+    if (!sid || !QUOTA_SESSION_ID_REGEX.test(sid)) {
+      return NextResponse.json(
+        { ok: false, error: "Missing quota session." },
+        { status: 401 },
+      );
+    }
+
+    const { used, accepted } = await tryIncrementUsage(sid, backend, rest);
+    const remaining = Math.max(0, FREE_DAILY_ANALYSIS_LIMIT - used);
+    return NextResponse.json({
+      ok: true,
+      used,
+      remaining,
+      limit: FREE_DAILY_ANALYSIS_LIMIT,
+      canStart: used < FREE_DAILY_ANALYSIS_LIMIT,
+      accepted,
+    });
+  } catch (err) {
+    const message =
+      err instanceof Error ? err.message : "Analysis quota record failed.";
+    console.error("[api/analysis/record]", err);
+    return NextResponse.json({ ok: false, error: message }, { status: 500 });
+  }
+}

@@ -3,6 +3,7 @@
 type Option<T extends string> = {
   value: T;
   label: string;
+  disabled?: boolean;
 };
 
 type SelectProps<T extends string> = {
@@ -32,7 +33,12 @@ export default function Select<T extends string>({
           className="w-full appearance-none bg-surface-800 border border-surface-600 hover:border-surface-500 rounded-lg px-3.5 py-2.5 pr-10 text-sm text-white cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-colors"
         >
           {options.map((opt) => (
-            <option key={opt.value} value={opt.value} className="bg-surface-800 text-white">
+            <option
+              key={opt.value}
+              value={opt.value}
+              disabled={opt.disabled === true}
+              className="bg-surface-800 text-white"
+            >
               {opt.label}
             </option>
           ))}
