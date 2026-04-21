@@ -6,6 +6,7 @@ import {
   PAYPAL_PRO_CURRENCY,
   PAYPAL_PRO_MONTHLY_AMOUNT_LABEL,
 } from "@/lib/paypalConstants";
+import { CONTACT_URL } from "@/lib/siteLinks";
 
 type Props = {
   onUnlock: () => void;
@@ -149,7 +150,7 @@ export default function PricingSection({
             throw new Error(body.error ?? "Subscription verification failed.");
           }
           onUnlock();
-          setMessage("Subscription active — Pro features are unlocked.");
+          setMessage("Subscription active. Pro features are unlocked.");
           setPayState("ready");
         } catch (e) {
           setPayState("ready");
@@ -207,7 +208,7 @@ export default function PricingSection({
           </li>
           <li className="flex gap-2">
             <span className="text-brand-400 shrink-0">✓</span>
-            Unlimited analyses — no daily cap
+            Unlimited analyses, no daily cap
           </li>
           <li className="flex gap-2">
             <span className="text-brand-400 shrink-0">✓</span>
@@ -237,7 +238,7 @@ export default function PricingSection({
             <code className="text-amber-100/90 text-xs">PAYPAL_MODE=live</code> with
             Live app credentials and a Live billing plan, or{" "}
             <code className="text-amber-100/90 text-xs">PAYPAL_MODE=sandbox</code>{" "}
-            (or omit — defaults to sandbox) with sandbox keys for testing. Restart{" "}
+            (or omit; defaults to sandbox) with sandbox keys for testing. Restart{" "}
             <code className="text-amber-100/90 text-xs">npm run dev</code> after
             saving.
           </p>
@@ -290,7 +291,16 @@ export default function PricingSection({
         <p className="text-gray-600 text-xs mt-4 leading-relaxed">
           Billed monthly through PayPal. Pro is linked to the account you are
           signed in with. You can manage or cancel your subscription anytime
-          from your PayPal account or contact support.
+          from your PayPal account or{" "}
+          <a
+            href={CONTACT_URL}
+            className="text-gray-500 hover:text-gray-300 underline underline-offset-2"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            contact us
+          </a>
+          .
         </p>
       </div>
     </section>

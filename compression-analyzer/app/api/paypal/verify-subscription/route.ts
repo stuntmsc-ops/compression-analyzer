@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { CONTACT_URL } from "@/lib/siteLinks";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/authOptions";
 import { prisma } from "@/lib/prisma";
@@ -56,7 +57,7 @@ export async function POST(req: Request): Promise<NextResponse> {
         {
           ok: false,
           error:
-            "This PayPal subscription is not linked to your signed-in account. Use the same Google account you started checkout with, or contact support.",
+            `This PayPal subscription is not linked to your signed-in account. Use the same account you started checkout with, or contact us: ${CONTACT_URL}`,
         },
         { status: 403 },
       );

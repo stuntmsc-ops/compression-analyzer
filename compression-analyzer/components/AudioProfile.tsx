@@ -78,7 +78,7 @@ function warningMessages(flags: AudioAnalysisResult["qualityFlags"]): string[] {
   }
   if (flags.clipping) {
     messages.push(
-      "Peak sits at digital full scale. The source may be clipped — true peak and crest factor will read lower than the original.",
+      "Peak sits at digital full scale. The source may be clipped, so true peak and crest factor will read lower than the original.",
     );
   }
   return messages;
@@ -117,7 +117,7 @@ function InlineTag({ tag }: { tag: Tag }) {
   return (
     <span className="text-gray-400 text-xs">
       <span className="text-gray-300 font-medium">{tag.label}</span>
-      <span className="text-gray-500"> — {tag.description}</span>
+      <span className="text-gray-500">: {tag.description}</span>
     </span>
   );
 }
@@ -144,7 +144,7 @@ function PrimaryStat({
       </span>
       <span className="mt-2 text-xs leading-snug">
         <span className="text-gray-300 font-medium">{tag.label}</span>
-        <span className="text-gray-500"> — {tag.description}</span>
+        <span className="text-gray-500">: {tag.description}</span>
       </span>
     </div>
   );
@@ -231,12 +231,12 @@ export default function AudioProfile({ analysis }: Props) {
         </div>
         <Row
           label="Dynamic Range"
-          value={stats ? `${stats.dynamicRangeDb.toFixed(1)} dB` : "—"}
+          value={stats ? `${stats.dynamicRangeDb.toFixed(1)} dB` : "-"}
           tag={stats ? classifyDynamicRangeDb(stats.dynamicRangeDb) : undefined}
         />
         <Row
           label="Consistency"
-          value={stats ? `${Math.round(stats.consistencyPct)}%` : "—"}
+          value={stats ? `${Math.round(stats.consistencyPct)}%` : "-"}
           tag={stats ? classifyConsistencyPct(stats.consistencyPct) : undefined}
         />
       </section>

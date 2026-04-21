@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import Button from "./Button";
 import { validateEmail } from "@/lib/emailValidation";
 
@@ -105,7 +106,7 @@ export default function EmailGate({ onSubmitted }: Props) {
             id="email-gate-title"
             className="text-white text-base sm:text-lg font-semibold leading-tight"
           >
-            Almost there — enter your email to unlock your settings.
+            Almost there: enter your email to unlock your settings.
           </h2>
           <p className="mt-1.5 text-gray-400 text-sm leading-relaxed">
             You&apos;ll also get our free 3-day compression training.
@@ -133,7 +134,7 @@ export default function EmailGate({ onSubmitted }: Props) {
             />
           </svg>
           <p className="text-brand-100 text-sm leading-relaxed">
-            Check your inbox to confirm your subscription — your settings are
+            Check your inbox to confirm your subscription. Your settings are
             unlocking now.
           </p>
         </div>
@@ -176,12 +177,12 @@ export default function EmailGate({ onSubmitted }: Props) {
           <div className="flex items-center justify-between gap-3">
             <p className="text-gray-600 text-[11px] leading-relaxed">
               By submitting you agree to our{" "}
-              <a
+              <Link
                 href="/privacy"
                 className="underline decoration-dotted hover:text-gray-400"
               >
                 privacy policy
-              </a>
+              </Link>
               .
             </p>
             <Button

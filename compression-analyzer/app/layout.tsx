@@ -1,35 +1,49 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import Providers from "@/components/Providers";
+import WebApplicationJsonLd from "@/components/WebApplicationJsonLd";
+import { getSiteUrl } from "@/lib/siteUrl";
 
-// Vercel automatically sets VERCEL_URL (e.g. my-app-abc123.vercel.app) on deployed
-// builds. On local dev we fall back to localhost:3000. Replace this with your real
-// custom domain once you've set one up.
-const siteUrl = process.env.VERCEL_URL
-  ? `https://${process.env.VERCEL_URL}`
-  : "http://localhost:3000";
+const siteUrl = getSiteUrl();
+const title = "Stop Guessing Your Compression Settings | Compression Analyzer";
+const description =
+  "Upload a clip and get personalized compressor settings (ratio, attack, release, and threshold) based on your audio’s dynamics. Built for producers and mixing engineers.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
-  title: "Compression Analyzer — Personalized Compression Settings From Your Audio",
-  description:
-    "Upload your audio and get compression settings based on your actual sound. Built for producers and mixing engineers who want to stop guessing.",
+  title: {
+    default: title,
+    template: "%s | Compression Analyzer",
+  },
+  description,
   keywords: [
     "compression settings",
+    "compressor attack and release",
     "vocal compression",
     "mixing tools",
     "audio compressor",
-    "mixing engineer tools",
+    "mixing engineer",
+    "dynamics processing",
   ],
+  alternates: {
+    canonical: "/",
+  },
   openGraph: {
-    title: "Compression Analyzer",
-    description: "Personalized compression settings based on your actual audio.",
+    title,
+    description,
     type: "website",
+    locale: "en_US",
+    siteName: "Compression Analyzer",
+    url: siteUrl,
   },
   twitter: {
     card: "summary_large_image",
-    title: "Compression Analyzer",
-    description: "Personalized compression settings based on your actual audio.",
+    title,
+    description,
+  },
+  robots: {
+    index: true,
+    follow: true,
   },
 };
 
@@ -41,6 +55,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="bg-surface-900 text-white antialiased">
+        <WebApplicationJsonLd />
         <Providers>{children}</Providers>
       </body>
     </html>

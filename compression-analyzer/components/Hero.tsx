@@ -223,53 +223,34 @@ export default function Hero() {
     }, 16);
   }, [audioBuffer]);
 
-  const scrollToUpload = () => {
-    document.getElementById("upload-zone")?.scrollIntoView({ behavior: "smooth" });
-  };
-
   return (
-    <section className="relative overflow-hidden">
-      {/* Background gradient effect */}
+    <section
+      id="analyzer-tool"
+      className="relative overflow-hidden border-t border-surface-800/80 scroll-mt-28"
+      aria-labelledby="analyzer-intro-heading"
+    >
       <div className="absolute inset-0 bg-gradient-to-b from-brand-500/5 via-transparent to-transparent pointer-events-none" />
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-brand-500/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[600px] max-w-[90vw] bg-brand-500/10 rounded-full blur-3xl pointer-events-none" />
 
-      <div className="relative max-w-4xl mx-auto px-4 sm:px-6 pt-16 sm:pt-24 pb-12 sm:pb-16 text-center">
-        <div className="inline-flex items-center gap-2 bg-brand-500/10 border border-brand-500/20 rounded-full px-4 py-1.5 mb-6 sm:mb-8">
-          <span className="relative flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-brand-400"></span>
-          </span>
-          <span className="text-brand-400 text-xs sm:text-sm font-medium">
-            Audio-Powered Compression Settings
-          </span>
-        </div>
-
-        <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold text-white mb-5 sm:mb-6 leading-[1.1] tracking-tight">
-          Stop Guessing Your
-          <br className="hidden sm:inline" />
-          <span className="bg-gradient-to-r from-brand-400 to-brand-600 bg-clip-text text-transparent">
-            {" "}Compression Settings
-          </span>
-        </h1>
-
-        <p className="text-gray-400 text-base sm:text-lg mb-8 sm:mb-10 max-w-2xl mx-auto leading-relaxed">
-          Upload your audio and get personalized compression settings based on
-          the actual dynamics of your sound — not generic numbers from a chart.
+      <div className="relative max-w-4xl mx-auto px-4 sm:px-6 pt-12 sm:pt-14 pb-12 sm:pb-16 text-center">
+        <p className="text-gray-500 text-xs font-semibold uppercase tracking-widest mb-2">
+          The analyzer
         </p>
-
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-12">
-          <Button size="lg" onClick={scrollToUpload}>
-            Analyze Your Audio
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-            </svg>
-          </Button>
-          <p className="text-gray-600 text-xs sm:text-sm">
-            {paidUnlocked
-              ? "Pro — all instruments · unlimited analyses"
-              : "Free tier — vocals only · 3 analyses per day"}
-          </p>
-        </div>
+        <h2
+          id="analyzer-intro-heading"
+          className="text-2xl sm:text-3xl font-bold text-white mb-3 tracking-tight"
+        >
+          Upload a clip, get settings in seconds
+        </h2>
+        <p className="text-gray-500 text-sm sm:text-base max-w-xl mx-auto leading-relaxed mb-2">
+          Pick instrument, genre, and goal, then drop your file. Analysis runs in
+          your browser.
+        </p>
+        <p className="text-gray-600 text-xs sm:text-sm mb-8 sm:mb-10">
+          {paidUnlocked
+            ? "Pro: all instruments, unlimited analyses"
+            : "Free tier: vocals only, 3 analyses per day"}
+        </p>
 
         {/* Analysis setup selectors */}
         <SelectorPanel

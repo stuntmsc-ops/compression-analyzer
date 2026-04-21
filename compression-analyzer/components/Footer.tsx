@@ -1,3 +1,6 @@
+import Link from "next/link";
+import { BLOG_URL, CONTACT_URL } from "@/lib/siteLinks";
+
 export default function Footer() {
   return (
     <footer className="border-t border-surface-700 mt-auto">
@@ -6,22 +9,32 @@ export default function Footer() {
           <p className="text-gray-600 text-xs sm:text-sm text-center sm:text-left">
             © 2026 Compression Analyzer. Built for producers and engineers.
           </p>
-          <div className="flex items-center gap-5">
-            <a
-              href="#"
+          <div className="flex flex-wrap items-center justify-center gap-5">
+            <Link
+              href="/privacy"
               className="text-gray-600 hover:text-gray-300 text-sm transition-colors"
             >
               Privacy
-            </a>
+            </Link>
             <a
-              href="#"
+              href={CONTACT_URL}
               className="text-gray-600 hover:text-gray-300 text-sm transition-colors"
+              target="_blank"
+              rel="noopener noreferrer"
             >
               Contact
             </a>
             <a
-              href="#"
+              href="#faq"
               className="text-gray-600 hover:text-gray-300 text-sm transition-colors"
+            >
+              FAQ
+            </a>
+            <a
+              href={BLOG_URL}
+              className="text-gray-600 hover:text-gray-300 text-sm transition-colors"
+              target="_blank"
+              rel="noopener noreferrer"
             >
               Blog
             </a>

@@ -16,7 +16,7 @@ export default function PluginTipsCard() {
       <ul className="text-gray-400 text-xs leading-relaxed space-y-2 list-disc pl-4">
         <li>
           Match the attack/release you see here on your stock compressor or
-          FabFilter Pro-C 2 — same ballpark times work across most plugins.
+          FabFilter Pro-C 2. The same ballpark times work across most plugins.
         </li>
         <li>
           If your compressor shows input vs. output gain, use makeup gain

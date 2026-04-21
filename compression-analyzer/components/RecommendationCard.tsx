@@ -93,7 +93,7 @@ function formatSettingsForClipboard(
 ): string {
   const context = `${labelForInstrument(instrument)} / ${labelForGenre(genre)} / ${labelForGoal(goal)}`;
   return [
-    `Compression Settings — ${context}`,
+    `Compression Settings (${context})`,
     `Threshold: ${settings.thresholdDb.toFixed(1)} dB`,
     `Ratio: ${formatRatio(settings.ratio)}`,
     `Attack: ${formatMs(settings.attackMs)} ms`,

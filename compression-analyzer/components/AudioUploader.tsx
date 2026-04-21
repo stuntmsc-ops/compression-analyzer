@@ -84,7 +84,7 @@ export default function AudioUploader({ onFileSelected }: AudioUploaderProps) {
     if (files.length === 0) return;
     if (files.length > 1) {
       setError(
-        `Drop one file at a time — got ${files.length}. Pick the single audio file you want to analyse.`,
+        `Drop one file at a time. You added ${files.length} files. Pick the single audio file you want to analyse.`,
       );
       return;
     }
