@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   utcDateKey,
   quotaRedisKey,
@@ -10,7 +10,6 @@ import {
   looksLikeUpstashVectorOrSearchRestUrl,
   quotaUnavailableResponseBody,
   resolveQuotaBackend,
-  getQuotaEnvDiagnosticHint,
 } from "./analysisQuotaServer";
 import { FREE_DAILY_ANALYSIS_LIMIT } from "./quotaConstants";
 
@@ -105,11 +104,13 @@ describe("resolveQuotaBackend env pairing", () => {
 });
 
 describe("quotaUnavailableResponseBody", () => {
-  it("includes skipReason matching the code", () => {
+  it("returns short client error and skipReason", () => {
     const b = quotaUnavailableResponseBody("vector_or_search_host");
     expect(b.ok).toBe(false);
     expect(b.skipReason).toBe("vector_or_search_host");
-    expect(b.error).toContain("Search or Vector");
+    expect(b.error).toBe(
+      "Analysis quota is pointed at the wrong Upstash product; Redis is required.",
+    );
   });
 });
 
@@ -119,7 +120,7 @@ const DIAG_ENV_KEYS = [
   "UPSTASH_SEARCH_REST_TOKEN",
 ] as const;
 
-describe("getQuotaEnvDiagnosticHint", () => {
+describe("quota unavailable logging (missing_env)", () => {
   let saved: Partial<Record<(typeof DIAG_ENV_KEYS)[number], string | undefined>>;
 
   beforeEach(() => {
@@ -137,10 +138,16 @@ describe("getQuotaEnvDiagnosticHint", () => {
     }
   });
 
-  it("flags Search env without Redis", () => {
+  it("logs Search-vs-Redis hint to console when Search env exists", () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
     process.env.UPSTASH_SEARCH_REST_URL = "https://example-search.upstash.io";
     process.env.UPSTASH_SEARCH_REST_TOKEN = "tok";
-    expect(getQuotaEnvDiagnosticHint()).toContain("Search or Vector");
+    const b = quotaUnavailableResponseBody("missing_env");
+    expect(b.error).toBe("Analysis quota is not configured on the server.");
+    expect(spy).toHaveBeenCalled();
+    const combined = spy.mock.calls.map((c) => c.join(" ")).join(" ");
+    expect(combined).toContain("Search or Vector");
+    spy.mockRestore();
   });
 });
 
