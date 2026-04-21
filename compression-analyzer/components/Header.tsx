@@ -39,12 +39,6 @@ export default function Header() {
           >
             FAQ
           </a>
-          <a
-            href="#pricing"
-            className="inline-flex items-center justify-center text-sm px-3 py-1.5 font-medium rounded-xl bg-surface-700 hover:bg-surface-600 text-white border border-surface-500 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-900 focus-visible:ring-brand-500"
-          >
-            Upgrade to Pro
-          </a>
           <AuthNav />
         </div>
       </div>
