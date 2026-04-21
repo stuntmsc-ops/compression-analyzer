@@ -6,7 +6,6 @@ import {
   PAYPAL_PRO_CURRENCY,
   PAYPAL_PRO_MONTHLY_AMOUNT_LABEL,
 } from "@/lib/paypalConstants";
-import { CONTACT_URL } from "@/lib/siteLinks";
 import { MSG_PAYMENT_FAILED } from "@/lib/userFacingMessages";
 import ReportProblemLink from "@/components/ReportProblemLink";
 
@@ -296,16 +295,7 @@ export default function PricingSection({
         <p className="text-gray-600 text-xs mt-4 leading-relaxed">
           Billed monthly through PayPal. Pro is linked to the account you are
           signed in with. You can manage or cancel your subscription anytime
-          from your PayPal account or{" "}
-          <a
-            href={CONTACT_URL}
-            className="text-gray-500 hover:text-gray-300 underline underline-offset-2"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            contact us
-          </a>
-          .
+          from your PayPal account or contact support.
         </p>
       </div>
     </section>
