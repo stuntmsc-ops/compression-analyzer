@@ -3,6 +3,7 @@ import "./globals.css";
 import Providers from "@/components/Providers";
 import WebApplicationJsonLd from "@/components/WebApplicationJsonLd";
 import { getSiteUrl } from "@/lib/siteUrl";
+import { Analytics } from "@vercel/analytics/next";
 
 const siteUrl = getSiteUrl();
 const title = "Stop Guessing Your Compression Settings | Compression Analyzer";
@@ -57,6 +58,7 @@ export default function RootLayout({
       <body className="bg-surface-900 text-white antialiased">
         <WebApplicationJsonLd />
         <Providers>{children}</Providers>
+        <Analytics />
       </body>
     </html>
   );
