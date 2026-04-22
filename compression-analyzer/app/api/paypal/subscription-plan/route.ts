@@ -1,12 +1,15 @@
 import { NextResponse } from "next/server";
-import { getPaypalPlanId, isPaypalConfigured } from "@/lib/paypalServer";
+import {
+  getPaypalPlanId,
+  isPaypalSubscriptionCheckoutConfigured,
+} from "@/lib/paypalServer";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(): Promise<NextResponse> {
   try {
-    if (!isPaypalConfigured()) {
+    if (!isPaypalSubscriptionCheckoutConfigured()) {
       return NextResponse.json(
         {
           ok: false,

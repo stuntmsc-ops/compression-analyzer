@@ -11,23 +11,23 @@ import {
 type SelectorPanelProps = {
   value: SelectorState;
   onChange: (value: SelectorState) => void;
-  /** When false, only Vocal is selectable; other instruments show disabled (Pro). */
-  paidUnlocked: boolean;
+  /** When false, only Vocal is selectable; other instruments show disabled (grays out). */
+  hasFullAccess: boolean;
 };
 
 export default function SelectorPanel({
   value,
   onChange,
-  paidUnlocked,
+  hasFullAccess,
 }: SelectorPanelProps) {
   const activeGoal = GOAL_OPTIONS.find((g) => g.value === value.goal);
 
-  const instrumentOptions = paidUnlocked
+  const instrumentOptions = hasFullAccess
     ? INSTRUMENT_OPTIONS
     : INSTRUMENT_OPTIONS.map((o) => ({
         ...o,
         disabled: o.value !== "vocal",
-        label: o.value === "vocal" ? o.label : `${o.label} (Pro)`,
+        label: o.value === "vocal" ? o.label : `${o.label} (use credits)`,
       }));
 
   return (

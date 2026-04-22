@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   getPaypalPlanId,
+  isPaypalApiConfigured,
   isPaypalConfigured,
+  isPaypalSubscriptionCheckoutConfigured,
   paypalApiBase,
   resetPaypalServerForTests,
   verifyPaypalSubscription,
@@ -29,14 +31,20 @@ describe("paypalServer", () => {
     expect(paypalApiBase()).toBe("https://api-m.sandbox.paypal.com");
   });
 
-  it("isPaypalConfigured is false without plan id", () => {
+  it("isPaypalConfigured (one-time) is true with client and secret only", () => {
     vi.stubEnv("PAYPAL_PLAN_ID", "");
     expect(getPaypalPlanId()).toBeNull();
-    expect(isPaypalConfigured()).toBe(false);
+    expect(isPaypalConfigured()).toBe(true);
+    expect(isPaypalApiConfigured()).toBe(true);
   });
 
-  it("isPaypalConfigured is true with client, secret, and plan", () => {
-    expect(isPaypalConfigured()).toBe(true);
+  it("isPaypalSubscriptionCheckoutConfigured is false without plan id", () => {
+    vi.stubEnv("PAYPAL_PLAN_ID", "");
+    expect(isPaypalSubscriptionCheckoutConfigured()).toBe(false);
+  });
+
+  it("isPaypalSubscriptionCheckoutConfigured is true with plan id", () => {
+    expect(isPaypalSubscriptionCheckoutConfigured()).toBe(true);
   });
 
   it("verifyPaypalSubscription returns ok when status is ACTIVE", async () => {

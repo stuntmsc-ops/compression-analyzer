@@ -3,7 +3,10 @@ import { CONTACT_URL } from "@/lib/siteLinks";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/authOptions";
 import { prisma } from "@/lib/prisma";
-import { isPaypalConfigured, verifyPaypalSubscription } from "@/lib/paypalServer";
+import {
+  isPaypalSubscriptionCheckoutConfigured,
+  verifyPaypalSubscription,
+} from "@/lib/paypalServer";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,7 +15,7 @@ type Body = { subscriptionID?: string; subscriptionId?: string };
 
 export async function POST(req: Request): Promise<NextResponse> {
   try {
-    if (!isPaypalConfigured()) {
+    if (!isPaypalSubscriptionCheckoutConfigured()) {
       return NextResponse.json(
         { ok: false, error: "PayPal is not configured on the server." },
         { status: 503 },

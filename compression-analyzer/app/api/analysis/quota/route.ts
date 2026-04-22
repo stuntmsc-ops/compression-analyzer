@@ -8,7 +8,7 @@ import {
   resolveQuotaBackend,
   utcDateKey,
 } from "@/lib/analysisQuotaServer";
-import { userHasActiveProSubscription } from "@/lib/proSubscriptionServer";
+import { userHasProEntitlement } from "@/lib/proSubscriptionServer";
 import {
   FREE_DAILY_ANALYSIS_LIMIT,
   QUOTA_SESSION_COOKIE,
@@ -33,7 +33,7 @@ export async function GET(): Promise<NextResponse> {
     const session = await getServerSession(authOptions);
     if (
       session?.user?.id &&
-      (await userHasActiveProSubscription(session.user.id))
+      (await userHasProEntitlement(session.user.id))
     ) {
       return NextResponse.json({
         ok: true,

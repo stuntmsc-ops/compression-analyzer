@@ -1,5 +1,9 @@
-// Server-side PayPal REST (Subscriptions v1). Used only from Route Handlers.
-// Set PAYPAL_CLIENT_ID + PAYPAL_CLIENT_SECRET + PAYPAL_PLAN_ID; PAYPAL_MODE=live|sandbox.
+// Server-side PayPal REST (Orders v2 + Subscriptions v1). Used only from Route Handlers.
+// Set PAYPAL_CLIENT_ID + PAYPAL_CLIENT_SECRET; PAYPAL_MODE=live|sandbox.
+// One-time: optional PAYPAL_ONETIME_USD (default 29). Legacy subscription: PAYPAL_PLAN_ID.
+
+import { PAYPAL_PRO_CURRENCY, PAYPAL_PRO_ONETIME_USD } from "@/lib/paypalConstants";
+import { randomUUID } from "node:crypto";
 
 type PayPalMode = "sandbox" | "live";
 
@@ -32,10 +36,30 @@ export function getPaypalPlanId(): string | null {
   return p || null;
 }
 
+/** Client id + secret — enough for OAuth, webhooks, and one-time checkout. */
+export function isPaypalApiConfigured(): boolean {
+  return Boolean(paypalClientId() && paypalClientSecret());
+}
+
+/** One-time $29 (or PAYPAL_ONETIME_USD) checkout. */
 export function isPaypalConfigured(): boolean {
+  return isPaypalApiConfigured();
+}
+
+/** Legacy monthly subscription flow (plan id required). */
+export function isPaypalSubscriptionCheckoutConfigured(): boolean {
   return Boolean(
     paypalClientId() && paypalClientSecret() && getPaypalPlanId(),
   );
+}
+
+function onetimeUsdAmountString(): string {
+  const raw = process.env.PAYPAL_ONETIME_USD?.trim();
+  const n = raw ? Number.parseFloat(raw) : PAYPAL_PRO_ONETIME_USD;
+  if (!Number.isFinite(n) || n <= 0) {
+    return PAYPAL_PRO_ONETIME_USD.toFixed(2);
+  }
+  return n.toFixed(2);
 }
 
 let cachedToken: { token: string; expiresAtMs: number } | null = null;
@@ -214,5 +238,253 @@ export async function verifyPaypalSubscription(
   return {
     ok: false,
     reason: `Subscription not active (status: ${status ?? "unknown"}).`,
+  };
+}
+
+// ── Orders v2: one-time capture ────────────────────────────────────
+
+/** PayPal 4xx/5xx JSON often includes `details[].description`. */
+function messageFromPaypalErrorJson(text: string): string {
+  try {
+    const j = JSON.parse(text) as {
+      message?: string;
+      details?: { description?: string; issue?: string }[];
+    };
+    if (typeof j.message === "string" && j.message.trim()) return j.message;
+    const d0 = j.details?.[0];
+    const s =
+      (typeof d0?.description === "string" && d0.description) ||
+      (typeof d0?.issue === "string" && d0.issue);
+    if (s) return s;
+  } catch {
+    /* fall through */
+  }
+  if (text.trim() && text.length < 500) return text.trim();
+  return "PayPal request failed.";
+}
+
+export async function createOneTimeOrder(
+  userId: string,
+): Promise<
+  { ok: true; orderId: string } | { ok: false; reason: string }
+> {
+  const id = userId?.trim();
+  if (!id) return { ok: false, reason: "Missing user id." };
+
+  const token = await getAccessToken();
+  const value = onetimeUsdAmountString();
+  const res = await fetch(`${paypalApiBase()}/v2/checkout/orders`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      "PayPal-Request-Id": randomUUID(),
+    },
+    body: JSON.stringify({
+      intent: "CAPTURE",
+      purchase_units: [
+        {
+          amount: {
+            currency_code: PAYPAL_PRO_CURRENCY,
+            value,
+          },
+          custom_id: id,
+        },
+      ],
+    }),
+    cache: "no-store",
+  });
+  const text = await res.text();
+  let data: { id?: string; message?: string };
+  try {
+    data = text ? (JSON.parse(text) as typeof data) : {};
+  } catch {
+    return { ok: false, reason: "PayPal returned non-JSON for create order." };
+  }
+  if (!res.ok || !data.id) {
+    return {
+      ok: false,
+      reason: !res.ok
+        ? messageFromPaypalErrorJson(text)
+        : "Create order failed: missing id.",
+    };
+  }
+  return { ok: true, orderId: data.id };
+}
+
+/** GET order (for custom_id if capture body omits it) — read custom_id and status. */
+export async function getCheckoutOrder(
+  orderId: string,
+): Promise<
+  | {
+      ok: true;
+      orderId: string;
+      status: string;
+      customId: string;
+      amountCents: number;
+      currency: string;
+    }
+  | { ok: false; reason: string }
+> {
+  const trimmed = orderId?.trim();
+  if (!trimmed) return { ok: false, reason: "Missing order id." };
+  const token = await getAccessToken();
+  const res = await fetch(
+    `${paypalApiBase()}/v2/checkout/orders/${encodeURIComponent(trimmed)}`,
+    {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      cache: "no-store",
+    },
+  );
+  const text = await res.text();
+  type OShape = {
+    id?: string;
+    status?: string;
+    message?: string;
+    purchase_units?: {
+      custom_id?: string;
+      payments?: { captures?: { amount?: { value?: string; currency_code?: string }; status?: string }[] };
+    }[];
+  };
+  let data: OShape;
+  try {
+    data = text ? (JSON.parse(text) as OShape) : {};
+  } catch {
+    return { ok: false, reason: "Order lookup returned non-JSON." };
+  }
+  if (!res.ok) {
+    return { ok: false, reason: messageFromPaypalErrorJson(text) };
+  }
+  const st = data.status;
+  if (st !== "COMPLETED") {
+    return {
+      ok: false,
+      reason: `Order not completed (status: ${st ?? "unknown"}).`,
+    };
+  }
+  const unit = data.purchase_units?.[0];
+  const customId = typeof unit?.custom_id === "string" ? unit.custom_id : "";
+  const capture = unit?.payments?.captures?.[0];
+  if (capture?.status !== "COMPLETED") {
+    return {
+      ok: false,
+      reason: "No completed capture on order.",
+    };
+  }
+  const amountStr = capture?.amount?.value;
+  const currency =
+    typeof capture?.amount?.currency_code === "string"
+      ? capture.amount.currency_code
+      : PAYPAL_PRO_CURRENCY;
+  const amountNum = amountStr != null ? Number.parseFloat(String(amountStr)) : Number.NaN;
+  const amountCents = Number.isFinite(amountNum)
+    ? Math.round(amountNum * 100)
+    : 0;
+  return {
+    ok: true,
+    orderId: typeof data.id === "string" ? data.id : trimmed,
+    status: st,
+    customId,
+    amountCents,
+    currency,
+  };
+}
+
+export type CapturePaypalOrderResult =
+  | {
+      ok: true;
+      orderId: string;
+      customId: string;
+      amountCents: number;
+      currency: string;
+    }
+  | { ok: false; reason: string };
+
+export async function capturePaypalOrder(
+  orderId: string,
+): Promise<CapturePaypalOrderResult> {
+  const trimmed = orderId?.trim();
+  if (!trimmed) return { ok: false, reason: "Missing order id." };
+
+  const token = await getAccessToken();
+  // PayPal expects `Content-Type: application/json` with an empty object — not
+  // a no-body POST, and the Prefer header is not valid on capture (422 payload).
+  const res = await fetch(
+    `${paypalApiBase()}/v2/checkout/orders/${encodeURIComponent(trimmed)}/capture`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+        "PayPal-Request-Id": randomUUID(),
+      },
+      body: JSON.stringify({}),
+      cache: "no-store",
+    },
+  );
+  const text = await res.text();
+  type CapShape = {
+    id?: string;
+    status?: string;
+    message?: string;
+    purchase_units?: {
+      custom_id?: string;
+      payments?: { captures?: { status?: string; amount?: { value?: string; currency_code?: string } }[] };
+    }[];
+  };
+  let data: CapShape;
+  try {
+    data = text ? (JSON.parse(text) as CapShape) : {};
+  } catch {
+    return { ok: false, reason: "PayPal returned non-JSON for capture." };
+  }
+  if (!res.ok) {
+    return { ok: false, reason: messageFromPaypalErrorJson(text) };
+  }
+  if (data.status !== "COMPLETED") {
+    return {
+      ok: false,
+      reason: `Order not completed (status: ${data.status ?? "unknown"}).`,
+    };
+  }
+  const unit = data.purchase_units?.[0];
+  let customId = typeof unit?.custom_id === "string" ? unit.custom_id : "";
+  const capList = unit?.payments?.captures ?? [];
+  const capture = capList.find((c) => c?.status === "COMPLETED") ?? capList[0];
+  if (!capture) {
+    return { ok: false, reason: "No capture in PayPal response." };
+  }
+  if (capture.status !== "COMPLETED") {
+    return {
+      ok: false,
+      reason: `Capture not completed (status: ${capture.status ?? "?"}).`,
+    };
+  }
+  const amountStr = capture?.amount?.value;
+  const currency =
+    typeof capture?.amount?.currency_code === "string"
+      ? capture.amount.currency_code
+      : PAYPAL_PRO_CURRENCY;
+  const amountNum = amountStr != null ? Number.parseFloat(String(amountStr)) : Number.NaN;
+  let amountCents = Number.isFinite(amountNum)
+    ? Math.round(amountNum * 100)
+    : 0;
+  if (!customId) {
+    const reRead = await getCheckoutOrder(trimmed);
+    if (reRead.ok) {
+      customId = reRead.customId;
+      if (amountCents === 0) amountCents = reRead.amountCents;
+    }
+  }
+  return {
+    ok: true,
+    orderId: typeof data.id === "string" ? data.id : trimmed,
+    customId,
+    amountCents,
+    currency,
   };
 }

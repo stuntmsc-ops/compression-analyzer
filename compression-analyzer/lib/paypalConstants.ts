@@ -1,5 +1,5 @@
-/** Display + copy for PayPal Pro subscription. Amount & billing cycle are set on the PayPal billing plan. */
+/** Display + copy for one-time Pro checkout. */
 export const PAYPAL_PRO_CURRENCY = "USD";
-export const PAYPAL_PRO_MONTHLY_AMOUNT_LABEL = "9";
-export const PAYPAL_PRO_PRODUCT_NAME =
-  "Compression Analyzer Pro (monthly)";
+/** Default price in USD; override with PAYPAL_ONETIME_USD (e.g. 29). */
+export const PAYPAL_PRO_ONETIME_USD = 29;
+export const PAYPAL_PRO_PRODUCT_NAME = "Compression Analyzer Pro (one-time)";

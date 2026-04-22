@@ -22,7 +22,7 @@ const STEPS = [
   {
     n: "3",
     title: "Get settings",
-    body: "Copy compressor starting points into your DAW, then tweak by ear, with coaching notes on Pro.",
+    body: "Copy compressor starting points into your DAW, then tweak by ear. After your free daily credits, upgrade once for full unlimited access and extra coaching notes.",
   },
 ];
 
@@ -41,7 +41,7 @@ const FAQ: { q: string; a: ReactNode }[] = [
   },
   {
     q: "What is the difference between Free and Pro?",
-    a: "Free focuses on vocals with a daily analysis limit. Pro unlocks all instrument types, unlimited analyses, shareable deep links with full state, and extra technique plus plugin workflow guidance.",
+    a: "Free includes the full feature set (all instruments, technique tips, and shareable links) for up to three analyses per day (UTC). Pro is a one-time purchase that removes the daily cap so you can run unlimited analyses.",
   },
   {
     q: "Will this work with my compressor plugin or stock DAW compressor?",
@@ -49,7 +49,7 @@ const FAQ: { q: string; a: ReactNode }[] = [
   },
   {
     q: "Do I need an account to try it?",
-    a: "You can explore the analyzer freely. We ask for an email to reveal full settings on the free tier, and you can sign in with Google or email to subscribe to Pro when you are ready.",
+    a: "You can explore the analyzer freely. We ask for an email to reveal full settings on the free tier, and you can sign in with Google or email to pay for Pro (one-time) when you are ready.",
   },
   {
     q: "Where can I read your privacy policy?",

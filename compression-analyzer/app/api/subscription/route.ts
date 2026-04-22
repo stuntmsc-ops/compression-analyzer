@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/authOptions";
-import { userHasActiveProSubscription } from "@/lib/proSubscriptionServer";
+import { userHasProEntitlement } from "@/lib/proSubscriptionServer";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** Returns whether the signed-in user has an active PayPal Pro subscription. */
+/** Returns whether the signed-in user has Pro (subscription or one-time purchase). */
 export async function GET(): Promise<NextResponse> {
   try {
     const session = await getServerSession(authOptions);
@@ -14,7 +14,7 @@ export async function GET(): Promise<NextResponse> {
     if (!userId) {
       return NextResponse.json({ ok: true, active: false, authenticated: false });
     }
-    const active = await userHasActiveProSubscription(userId);
+    const active = await userHasProEntitlement(userId);
     return NextResponse.json({
       ok: true,
       active,

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { signIn } from "next-auth/react";
 import {
   PAYPAL_PRO_CURRENCY,
-  PAYPAL_PRO_MONTHLY_AMOUNT_LABEL,
+  PAYPAL_PRO_ONETIME_USD,
 } from "@/lib/paypalConstants";
 import { MSG_PAYMENT_FAILED } from "@/lib/userFacingMessages";
 import ReportProblemLink from "@/components/ReportProblemLink";
@@ -24,9 +24,15 @@ function publicPaypalClientId(): string | undefined {
   return v || undefined;
 }
 
+const displayOnetimeUsd =
+  typeof process.env.NEXT_PUBLIC_PAYPAL_ONETIME_USD === "string" &&
+  process.env.NEXT_PUBLIC_PAYPAL_ONETIME_USD.trim() !== ""
+    ? process.env.NEXT_PUBLIC_PAYPAL_ONETIME_USD.trim()
+    : String(PAYPAL_PRO_ONETIME_USD);
+
 /**
- * PayPal Pro subscription ($9/mo). Requires a signed-in user; `custom_id` on
- * the subscription is the user id. After verify, `onUnlock` refreshes session + DB state.
+ * PayPal one-time Pro purchase. Requires a signed-in user; `custom_id` on
+ * the order is the user id. After capture, `onUnlock` refreshes subscription state.
  */
 export default function PricingSection({
   onUnlock,
@@ -87,7 +93,7 @@ export default function PricingSection({
       clientId,
     )}&currency=${encodeURIComponent(
       PAYPAL_PRO_CURRENCY,
-    )}&vault=true&intent=subscription`;
+    )}`;
     script.async = true;
     script.onload = () => done();
     script.onerror = () => {
@@ -117,43 +123,65 @@ export default function PricingSection({
 
     const buttons = paypal.Buttons({
       style: { layout: "vertical", shape: "rect", label: "paypal" },
-      createSubscription: async (_data, actions) => {
+      createOrder: async () => {
         setMessage(null);
-        const res = await fetch("/api/paypal/subscription-plan");
+        const res = await fetch("/api/paypal/create-order", {
+          method: "POST",
+          credentials: "include",
+        });
         const data = (await res.json()) as {
           ok?: boolean;
-          planId?: string;
+          orderID?: string;
           error?: string;
         };
-        if (!res.ok || !data.ok || !data.planId) {
-          throw new Error(data.error ?? "Could not start subscription checkout.");
+        if (!res.ok || !data.ok || !data.orderID) {
+          throw new Error(data.error ?? "Could not start checkout.");
         }
-        return actions.subscription.create({
-          plan_id: data.planId,
-          custom_id: sessionUserId,
-        });
+        return data.orderID;
       },
       onApprove: async (data) => {
         setPayState("processing");
         setMessage(null);
-        const subscriptionID = data.subscriptionID;
+        const d = data as { orderID?: string; orderId?: string };
+        const orderID = d.orderID ?? d.orderId;
+        if (!orderID) {
+          console.error("[PayPal] onApprove missing order id", data);
+          setPayState("ready");
+          setMessage(
+            "PayPal did not return an order id. Check the console and try again.",
+          );
+          return;
+        }
         try {
-          const res = await fetch("/api/paypal/verify-subscription", {
+          const res = await fetch("/api/paypal/capture-order", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ subscriptionID }),
+            credentials: "include",
+            body: JSON.stringify({ orderID }),
           });
-          const body = (await res.json()) as {
-            ok?: boolean;
-            error?: string;
-          };
+          const raw = await res.text();
+          let body: { ok?: boolean; error?: string };
+          try {
+            body = raw ? (JSON.parse(raw) as typeof body) : {};
+          } catch {
+            setPayState("ready");
+            setMessage(
+              raw
+                ? `Server error (${res.status}). ${raw.slice(0, 120)}…`
+                : MSG_PAYMENT_FAILED,
+            );
+            return;
+          }
           if (!res.ok || !body.ok) {
-            throw new Error(body.error ?? "Subscription verification failed.");
+            setPayState("ready");
+            setMessage(body.error ?? MSG_PAYMENT_FAILED);
+            return;
           }
           onUnlock();
-          setMessage("Subscription active. Pro features are unlocked.");
+          setMessage("Payment complete. Pro features are unlocked.");
           setPayState("ready");
-        } catch {
+        } catch (e) {
+          console.error("[PayPal] capture-order", e);
           setPayState("ready");
           setMessage(MSG_PAYMENT_FAILED);
         }
@@ -193,13 +221,13 @@ export default function PricingSection({
           id="pricing-heading"
           className="text-white text-lg sm:text-xl font-semibold mb-1"
         >
-          Unlock everything
+          Unlock unlimited
         </h2>
         <p className="text-brand-200/90 text-2xl sm:text-3xl font-bold tabular-nums mb-3">
-          {PAYPAL_PRO_CURRENCY} {PAYPAL_PRO_MONTHLY_AMOUNT_LABEL}
+          {PAYPAL_PRO_CURRENCY} {displayOnetimeUsd}
           <span className="text-base sm:text-lg font-semibold text-gray-400">
             {" "}
-            / month
+            one-time
           </span>
         </p>
         <ul className="text-gray-400 text-sm space-y-1.5 mb-5 list-none">
@@ -227,19 +255,23 @@ export default function PricingSection({
             <code className="text-amber-100/90 text-xs">
               NEXT_PUBLIC_PAYPAL_CLIENT_ID
             </code>{" "}
-            (public),{" "}
+            and{" "}
             <code className="text-amber-100/90 text-xs">
               PAYPAL_CLIENT_SECRET
             </code>{" "}
-            (server), and{" "}
-            <code className="text-amber-100/90 text-xs">PAYPAL_PLAN_ID</code>{" "}
-            (your monthly plan id, starts with{" "}
-            <code className="text-amber-100/90 text-xs">P-</code>) to{" "}
-            <code className="text-amber-100/90 text-xs">.env.local</code>. Set{" "}
-            <code className="text-amber-100/90 text-xs">PAYPAL_MODE=live</code> with
-            Live app credentials and a Live billing plan, or{" "}
+            to{" "}
+            <code className="text-amber-100/90 text-xs">.env.local</code>.
+            Optional:{" "}
+            <code className="text-amber-100/90 text-xs">PAYPAL_ONETIME_USD</code>{" "}
+            and{" "}
+            <code className="text-amber-100/90 text-xs">
+              NEXT_PUBLIC_PAYPAL_ONETIME_USD
+            </code>{" "}
+            to match the displayed price (default {PAYPAL_PRO_ONETIME_USD}). Set{" "}
+            <code className="text-amber-100/90 text-xs">PAYPAL_MODE=live</code>{" "}
+            with Live credentials, or{" "}
             <code className="text-amber-100/90 text-xs">PAYPAL_MODE=sandbox</code>{" "}
-            (or omit; defaults to sandbox) with sandbox keys for testing. Restart{" "}
+            (or omit) for sandbox. Restart{" "}
             <code className="text-amber-100/90 text-xs">npm run dev</code> after
             saving.
           </p>
@@ -247,10 +279,8 @@ export default function PricingSection({
           <p className="text-gray-500 text-sm">Checking sign-in…</p>
         ) : sessionStatus !== "authenticated" || !sessionUserId ? (
           <p className="text-amber-200/90 text-sm leading-relaxed">
-            Sign in with Google or email (magic link) to subscribe. Your
-            subscription is tied to
-            that account so we can unlock Pro after payment and keep access in
-            sync when you cancel or renew.
+            Sign in with Google or email (magic link) to pay. Pro is linked to
+            the account you use at checkout.
             <button
               type="button"
               className="block mt-3 text-brand-300 hover:text-brand-200 underline text-sm font-medium"
@@ -270,7 +300,7 @@ export default function PricingSection({
             <div ref={containerRef} className="min-h-[44px]" />
             {payState === "processing" && (
               <p className="text-brand-200/90 text-sm mt-2">
-                Confirming subscription…
+                Confirming payment…
               </p>
             )}
           </>
@@ -279,23 +309,24 @@ export default function PricingSection({
         {message && (
           <div
             className={`text-sm mt-3 leading-relaxed space-y-2 ${
-              message.includes("active") || message.includes("unlocked")
+              message.includes("complete") || message.includes("unlocked")
                 ? "text-emerald-400/90"
                 : "text-amber-200/90"
             }`}
             role="status"
           >
             <p>{message}</p>
-            {!(message.includes("active") || message.includes("unlocked")) && (
+            {!(
+              message.includes("complete") || message.includes("unlocked")
+            ) && (
               <ReportProblemLink className="text-amber-200/80" />
             )}
           </div>
         )}
 
         <p className="text-gray-600 text-xs mt-4 leading-relaxed">
-          Billed monthly through PayPal. Pro is linked to the account you are
-          signed in with. You can manage or cancel your subscription anytime
-          from your PayPal account or contact support.
+          One-time payment through PayPal, linked to the account you are signed
+          in with. For payment issues, use PayPal or contact support.
         </p>
       </div>
     </section>

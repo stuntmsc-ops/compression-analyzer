@@ -20,8 +20,8 @@ type Props = {
   instrument: InstrumentType;
   genre: Genre;
   goal: CompressionGoal;
-  /** Pro: full rationale, deltas, and copy. Free: core tiles + short summary. */
-  paidTier: boolean;
+  /** Full: rationale, deltas, and copy. Limited: core tiles + short summary. */
+  fullContent: boolean;
 };
 
 /**
@@ -169,7 +169,7 @@ export default function RecommendationCard({
   instrument,
   genre,
   goal,
-  paidTier,
+  fullContent,
 }: Props) {
   const rec = useMemo(
     () => recommendCompression(analysis, instrument, genre, goal),
@@ -209,7 +209,7 @@ export default function RecommendationCard({
   // over, so the next selector toggle (not the file swap itself) is
   // the first annotated render.
   const deltas =
-    paidTier && prevSettings && prevAnalysis === analysis
+    fullContent && prevSettings && prevAnalysis === analysis
       ? computeDeltas(settings, prevSettings)
       : null;
 
@@ -252,7 +252,7 @@ export default function RecommendationCard({
           <p className="text-gray-400 text-sm font-semibold">
             Recommended Settings
           </p>
-          {paidTier ? (
+          {fullContent ? (
             <button
               type="button"
               onClick={handleCopy}
@@ -273,7 +273,7 @@ export default function RecommendationCard({
               href="#pricing"
               className="text-[11px] font-medium px-2 py-1 rounded-md border border-surface-700 text-gray-500 hover:text-brand-300 hover:border-brand-500/40 transition-colors"
             >
-              Copy (Pro)
+              Copy (locked)
             </a>
           )}
         </div>
@@ -355,7 +355,7 @@ export default function RecommendationCard({
         </div>
       )}
 
-      {!paidTier ? (
+      {!fullContent ? (
         <div className="pt-3 border-t border-surface-800">
           <p className="text-xs text-gray-400 leading-relaxed">
             {rec.explanation.summary}

@@ -15,11 +15,17 @@ type PayPalButtonsInstance = {
 
 type PayPalButtonsOptions = {
   style?: Record<string, string>;
+  /** One-time / order checkout */
+  createOrder?: () => Promise<string>;
   createSubscription?: (
     data: unknown,
     actions: PayPalSubscriptionActions,
   ) => Promise<string>;
-  onApprove?: (data: { subscriptionID?: string }) => Promise<void>;
+  onApprove?: (data: {
+    subscriptionID?: string;
+    orderID?: string;
+    orderId?: string;
+  }) => Promise<void>;
   onError?: (err: unknown) => void;
   onCancel?: () => void;
 };

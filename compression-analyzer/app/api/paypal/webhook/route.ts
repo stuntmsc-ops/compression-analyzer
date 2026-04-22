@@ -1,14 +1,15 @@
 import { NextResponse } from "next/server";
 import { verifyAndParsePaypalWebhook } from "@/lib/paypalWebhook";
+import { applyPaypalPaymentCaptureCompleted } from "@/lib/paypalWebhookOnetime";
 import { applyPaypalSubscriptionWebhook } from "@/lib/paypalWebhookSubscription";
-import { isPaypalConfigured } from "@/lib/paypalServer";
+import { isPaypalApiConfigured } from "@/lib/paypalServer";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request): Promise<NextResponse> {
   try {
-    if (!isPaypalConfigured()) {
+    if (!isPaypalApiConfigured()) {
       return NextResponse.json({ ok: false }, { status: 503 });
     }
     const rawBody = await req.text();
@@ -18,7 +19,9 @@ export async function POST(req: Request): Promise<NextResponse> {
       return NextResponse.json({ ok: false }, { status: 400 });
     }
     const { event } = verified;
-    if (
+    if (event.event_type === "PAYMENT.CAPTURE.COMPLETED") {
+      await applyPaypalPaymentCaptureCompleted(event);
+    } else if (
       typeof event.event_type === "string" &&
       event.event_type.startsWith("BILLING.SUBSCRIPTION.")
     ) {

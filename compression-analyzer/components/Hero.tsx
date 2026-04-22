@@ -3,7 +3,7 @@
 import {
   useState,
   useEffect,
-  useLayoutEffect,
+  useMemo,
   useCallback,
   useRef,
 } from "react";
@@ -80,16 +80,24 @@ export default function Hero() {
   /** Free-tier quota counts only after settings are unlockable; at most once per upload. */
   const quotaRecordedFileKeyRef = useRef<string | null>(null);
 
-  // Free tier only supports vocal — deep links with another instrument
-  // are clamped before paint to avoid a one-frame invalid <select> value.
-  useLayoutEffect(() => {
-    if (paidUnlocked) return;
-    if (selectors.instrument === "vocal") return;
-    setSelectors({
-      ...selectors,
-      instrument: "vocal",
-    });
-  }, [paidUnlocked, selectors, setSelectors]);
+  /** Full recommendation + technique for paid, or free until daily cap (including last in-session result after cap). */
+  const freeContentUnlocked = useMemo(() => {
+    if (paidUnlocked) return true;
+    if (canStartNewAnalysis) return true;
+    if (analysis && (quota.status === "loading" || quota.status === "error")) {
+      return true;
+    }
+    if (!analysis) return false;
+    if (quota.status === "loading") return true;
+    if (quota.status !== "ready") return false;
+    return !paidUnlocked && !canStartNewAnalysis && quota.used > 0;
+  }, [paidUnlocked, canStartNewAnalysis, quota, analysis]);
+
+  const showPricingSection =
+    !paidUnlocked &&
+    emailSubmitted &&
+    quota.status === "ready" &&
+    !canStartNewAnalysis;
 
   // ─── Copy-link button ────────────────────────────────────────────
   //
@@ -219,7 +227,7 @@ export default function Hero() {
     setQuotaError(null);
     if (!paidUnlocked && !canStartNewAnalysis) {
       setQuotaError(
-        "You've used all 3 free vocal analyses today. Upgrade to Pro for unlimited analyses, or try again tomorrow.",
+        "You've used all 3 free analyses today. Upgrade for unlimited analyses, or try again tomorrow.",
       );
       return;
     }
@@ -297,15 +305,15 @@ export default function Hero() {
         </p>
         <p className="text-gray-600 text-xs sm:text-sm mb-8 sm:mb-10">
           {paidUnlocked
-            ? "Pro: all instruments, unlimited analyses"
-            : "Free tier: vocals only, 3 analyses per day"}
+            ? "Unlimited: all instruments, full access"
+            : "Free: full features, 3 analyses per day (UTC)"}
         </p>
 
         {/* Analysis setup selectors */}
         <SelectorPanel
           value={selectors}
           onChange={setSelectors}
-          paidUnlocked={paidUnlocked}
+          hasFullAccess={freeContentUnlocked}
         />
 
         {!paidUnlocked && quota.status === "error" && (
@@ -318,8 +326,7 @@ export default function Hero() {
           </div>
         )}
 
-        {/* Share-link — Pro only (URL encodes full selector state). */}
-        {paidUnlocked && (
+        {freeContentUnlocked && (
           <div className="max-w-2xl mx-auto mb-6 flex justify-end px-1">
             <button
               type="button"
@@ -355,7 +362,7 @@ export default function Hero() {
                   {quotaError}
                 </div>
               )}
-              {quotaError && !paidUnlocked && emailSubmitted && (
+              {quotaError && showPricingSection && (
                 <div className="mt-6">
                   <PricingSection
                     onUnlock={markPaidUnlocked}
@@ -416,11 +423,11 @@ export default function Hero() {
                   instrument={selectors.instrument}
                   genre={selectors.genre}
                   goal={selectors.goal}
-                  paidTier={paidUnlocked}
+                  fullContent={freeContentUnlocked}
                 />
               )}
 
-              {analysis && emailSubmitted && !paidUnlocked && (
+              {analysis && emailSubmitted && showPricingSection && (
                 <PricingSection
                   onUnlock={markPaidUnlocked}
                   sessionStatus={sessionStatus}
@@ -428,14 +435,13 @@ export default function Hero() {
                 />
               )}
 
-              {/* Technique + plugin tips — Pro only (Day 23). */}
-              {analysis && emailSubmitted && paidUnlocked && (
+              {analysis && emailSubmitted && freeContentUnlocked && (
                 <TechniqueCard
                   analysis={analysis}
                   instrument={selectors.instrument}
                 />
               )}
-              {analysis && emailSubmitted && paidUnlocked && (
+              {analysis && emailSubmitted && freeContentUnlocked && (
                 <PluginTipsCard />
               )}
 

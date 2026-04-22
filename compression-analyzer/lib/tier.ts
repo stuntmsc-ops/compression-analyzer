@@ -1,4 +1,4 @@
-// Pro access: signed-in user + active PayPal subscription in the database.
+// Pro access: signed-in user with active PayPal subscription or one-time purchase in the database.
 // Legacy localStorage helpers remain for tests and one-time cleanup after sign-in.
 // Server enforcement: `lib/proSubscriptionServer.ts` + `/api/analysis/*`.
 
