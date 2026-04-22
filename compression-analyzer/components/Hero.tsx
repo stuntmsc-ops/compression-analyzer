@@ -16,14 +16,12 @@ import TechniqueCard from "./TechniqueCard";
 import PluginTipsCard from "./PluginTipsCard";
 import AnalyzingIndicator from "./AnalyzingIndicator";
 import SelectorPanel from "./SelectorPanel";
-import EmailGate from "./EmailGate";
 import PricingSection from "./PricingSection";
 import BrowserAudioGuard from "./BrowserAudioGuard";
 import ReportProblemLink from "./ReportProblemLink";
 import { decodeAudioFile } from "@/lib/audioContext";
 import { analyzeAudioBuffer, type AudioAnalysisResult } from "@/lib/audioAnalysis";
 import { useUrlSelectors } from "@/lib/urlState";
-import { useEmailGate } from "@/lib/emailGate";
 import { useTier } from "@/lib/tier";
 import { useAnalysisQuota } from "@/lib/useAnalysisQuota";
 import {
@@ -67,12 +65,6 @@ export default function Hero() {
   // client snapshot reads the real hash after hydration).
   const [selectors, setSelectors] = useUrlSelectors();
   const [copyLinkStatus, setCopyLinkStatus] = useState<CopyLinkStatus>("idle");
-  // Email-gate state lives in localStorage so a returning visitor isn't
-  // re-prompted every time they upload a new file. `emailSubmitted`
-  // drives whether the settings + technique cards render or the gate
-  // stands in their place; `handleEmailGateSuccess` runs after the gate
-  // API succeeds (marks submitted + records free-tier quota once).
-  const [emailSubmitted, markEmailSubmitted] = useEmailGate();
   const { paidUnlocked, markPaidUnlocked, sessionStatus, userId } = useTier();
   const { quota, canStartNewAnalysis, recordAfterSuccess } =
     useAnalysisQuota(paidUnlocked);
@@ -95,7 +87,6 @@ export default function Hero() {
 
   const showPricingSection =
     !paidUnlocked &&
-    emailSubmitted &&
     quota.status === "ready" &&
     !canStartNewAnalysis;
 
@@ -143,12 +134,6 @@ export default function Hero() {
     [paidUnlocked, recordAfterSuccess],
   );
 
-  const handleEmailGateSuccess = useCallback(async () => {
-    markEmailSubmitted();
-    if (!file) return;
-    await recordFreeTierIfNeeded(file);
-  }, [file, markEmailSubmitted, recordFreeTierIfNeeded]);
-
   useEffect(() => {
     // When file is cleared, handleRemove owns the reset — nothing to do here.
     if (!file) return;
@@ -191,9 +176,7 @@ export default function Hero() {
         if (controller.signal.aborted) return;
         setAnalysis(result);
         setLoadingPhase(null);
-        // Free tier: count toward daily quota only once the user can see settings
-        // (email already on file) or will right after they submit the gate.
-        if (!paidUnlocked && emailSubmitted) {
+        if (!paidUnlocked) {
           await recordFreeTierIfNeeded(file);
         }
       })
@@ -208,7 +191,7 @@ export default function Hero() {
     return () => {
       controller.abort();
     };
-  }, [file, decodeAttempt, paidUnlocked, emailSubmitted, recordFreeTierIfNeeded]);
+  }, [file, decodeAttempt, paidUnlocked, recordFreeTierIfNeeded]);
 
   const handleRetryDecode = () => {
     // Clear state that belongs to the failed attempt, then bump the
@@ -407,17 +390,7 @@ export default function Hero() {
 
               {analysis && <AudioProfile analysis={analysis} />}
 
-              {/* Email gate — stands in for the payoff cards
-                  (RecommendationCard + TechniqueCard) until the user
-                  hands over an email. AudioPlayer and AudioProfile
-                  stay visible above so the user can see the tool
-                  measured their file before being asked to subscribe —
-                  no "wall of text then gate" surprise. */}
-              {analysis && !emailSubmitted && (
-                <EmailGate onSubmitted={handleEmailGateSuccess} />
-              )}
-
-              {analysis && emailSubmitted && (
+              {analysis && (
                 <RecommendationCard
                   analysis={analysis}
                   instrument={selectors.instrument}
@@ -427,7 +400,7 @@ export default function Hero() {
                 />
               )}
 
-              {analysis && emailSubmitted && showPricingSection && (
+              {analysis && showPricingSection && (
                 <PricingSection
                   onUnlock={markPaidUnlocked}
                   sessionStatus={sessionStatus}
@@ -435,13 +408,13 @@ export default function Hero() {
                 />
               )}
 
-              {analysis && emailSubmitted && freeContentUnlocked && (
+              {analysis && freeContentUnlocked && (
                 <TechniqueCard
                   analysis={analysis}
                   instrument={selectors.instrument}
                 />
               )}
-              {analysis && emailSubmitted && freeContentUnlocked && (
+              {analysis && freeContentUnlocked && (
                 <PluginTipsCard />
               )}
 

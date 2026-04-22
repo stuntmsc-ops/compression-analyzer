@@ -1,4 +1,4 @@
-// Email input validation + normalisation for the subscribe gate.
+// Email input validation + normalisation (e.g. /api/subscribe, NextAuth).
 //
 // Deliberately permissive: the canonical RFC 5322 grammar allows a lot
 // of legal addresses that look broken to a user ("user+tag@sub.co" —

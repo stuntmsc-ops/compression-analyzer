@@ -49,7 +49,7 @@ const FAQ: { q: string; a: ReactNode }[] = [
   },
   {
     q: "Do I need an account to try it?",
-    a: "You can explore the analyzer freely. We ask for an email to reveal full settings on the free tier, and you can sign in with Google or email to pay for Pro (one-time) when you are ready.",
+    a: "You can explore the analyzer and see full settings without an account. Sign in with Google or email when you are ready to pay for Pro (one-time).",
   },
   {
     q: "Where can I read your privacy policy?",

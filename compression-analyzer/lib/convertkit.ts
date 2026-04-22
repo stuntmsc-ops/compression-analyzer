@@ -165,7 +165,7 @@ export async function tagSubscriberByEmail(
 }
 
 /**
- * Full subscribe flow for the email gate: upsert → form (DOI) →
+ * Full subscribe flow: upsert → form (DOI) →
  * optional tag.
  */
 export async function subscribeEmail(

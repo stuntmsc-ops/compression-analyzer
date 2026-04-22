@@ -1,4 +1,4 @@
-// POST /api/subscribe — email-gate endpoint.
+// POST /api/subscribe — ConvertKit / Kit list sign-up (optional; not used by default UI).
 //
 // Thin handler on top of `lib/convertkit` (Kit / ConvertKit API v4).
 // Responsibilities:
